@@ -19,7 +19,11 @@
 
       systems = [ "x86_64-linux" "aarch64-darwin" "x86_64-darwin" ];
 
-      imports = [ crowdfunding/crowdfunding.nix split/split.nix ];
+      imports = [
+        crowdfunding/crowdfunding.nix
+        p-multisig-stateful/p-multisig-stateful.nix
+        split/split.nix
+      ];
 
       perSystem = { pkgs, ... }: { formatter = pkgs.nixfmt; };
     };
