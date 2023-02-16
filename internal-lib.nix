@@ -1,13 +1,12 @@
-## This file provides miscellaneous Nix utilities
+# # This file provides miscellaneous Nix utilities
 {
   ## Generate a haskell package using haskell.nix
-  make-haskell-nix-pkg =
-    { pkgs, src, haskellNix, CHaP, compiler-nix-name, shell }:
+  make-haskell-nix-pkg = { pkgs, src, haskellNix, CHaP, compiler-nix-name }:
     (pkgs.appendOverlays [
       haskellNix.overlay
       (final: prev: {
         thePackage = final.haskell-nix.project {
-          inherit src compiler-nix-name shell;
+          inherit src compiler-nix-name;
 
           inputMap = {
             "https://input-output-hk.github.io/cardano-haskell-packages" = CHaP;
