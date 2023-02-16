@@ -10,10 +10,9 @@
       };
       flake = crowdfunding.flake { };
     in {
-      ## REVIEW Building the package with Nix currently (2023-02-15) fails
-      ## on `cardano-addresses`because of
-      ## https://github.com/input-output-hk/haskell.nix/issues/767
-      packages.crowdfunding = flake.packages."crowdfunding:lib:crowdfunding";
+      packages.crowdfunding = flake.packages."crowdfunding:test:spec";
+
+      packages.crowdfunding-lib = flake.packages."crowdfunding:lib:crowdfunding";
 
       devShells.crowdfunding = crowdfunding.shellFor {
         withHoogle = true;
