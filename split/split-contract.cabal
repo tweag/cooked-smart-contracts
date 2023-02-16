@@ -25,44 +25,32 @@ library
     , aeson
     , base >=4.9 && <5
     , bytestring
-    , containers
     , cooked-validators
     , data-default
-    , either
     , flat
-    , foldl
-    , freer-extras
-    , freer-simple
-    , heredoc
     , hspec
-    , lens
-    , mtl
     , optics-core
     , playground-common
     , plutus-contract
     , plutus-core
     , plutus-ledger
     , plutus-ledger-api
-    , plutus-pab
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-plugin
-    , plutus-use-cases
-    , scientific
-    , serialise >=0.2.3.0
-    , streaming
     , tasty
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , transformers
   default-language: Haskell2010
 
 test-suite spec
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      SplitSpec
+      SplitUPLCSpec
       Paths_split_contract
   autogen-modules:
       Paths_split_contract
@@ -74,37 +62,23 @@ test-suite spec
     , aeson
     , base >=4.9 && <5
     , bytestring
-    , containers
     , cooked-validators
     , data-default
-    , either
     , flat
-    , foldl
-    , freer-extras
-    , freer-simple
-    , heredoc
     , hspec
-    , lens
-    , mtl
     , optics-core
     , playground-common
     , plutus-contract
     , plutus-core
     , plutus-ledger
     , plutus-ledger-api
-    , plutus-pab
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-plugin
-    , plutus-use-cases
-    , scientific
-    , serialise >=0.2.3.0
     , split-contract
-    , streaming
     , tasty
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
     , text
-    , transformers
   default-language: Haskell2010

@@ -6,43 +6,26 @@ version: 0.1.0.0
 
 dependencies:
   - base >= 4.9 && < 5
-  # Internal dependencies of the test suite
   - cooked-validators
-  # Other libraries that you will likely need to write a good test-suide:
   - QuickCheck
   - tasty
   - tasty-hunit
   - tasty-quickcheck
   - tasty-expected-failure
-  - heredoc
-  # Dependencies of the example contracts, these come from the client
   - aeson
   - bytestring
-  - containers
   - data-default
-  - either
   - flat
-  - foldl
-  - freer-extras
-  - freer-simple
   - hspec
-  - lens
-  - mtl
-  - plutus-contract
   - plutus-core
   - plutus-ledger
   - plutus-ledger-api
-  - plutus-pab
   - plutus-tx
   - plutus-tx-plugin
-  - plutus-use-cases
-  - plutus-script-utils
+  - plutus-contract
   - playground-common
-  - scientific
-  - serialise >= 0.2.3.0
-  - streaming
+  - plutus-script-utils
   - text
-  - transformers
   - optics-core
 
 library:
