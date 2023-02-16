@@ -1,1 +1,4 @@
 dist-newstyle/
+
+# Links created by `nix build`
+result
