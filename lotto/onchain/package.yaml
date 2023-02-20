@@ -1,0 +1,26 @@
+name: lotto-onchain
+version: 0.0.1
+
+ghc-options:
+  - -Wall
+  - -Wincomplete-uni-patterns
+  - -Wincomplete-record-updates
+  - -Wmissing-import-lists
+  - -haddock
+
+dependencies:
+  - base
+  - data-default
+  - bytestring
+  - plutarch
+  - plutarch-extra
+  - ply-plutarch
+  - optparse-applicative
+
+library:
+  source-dirs: src
+
+executable:
+  main: Main.hs
+  source-dirs: exe
+  dependencies: lotto-onchain

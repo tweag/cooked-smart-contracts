@@ -1,0 +1,3 @@
+*.plc
+# We don't ignore *.plutus files because generation can cost a lot
+# (in compilation time &c.)

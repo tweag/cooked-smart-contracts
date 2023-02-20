@@ -1,0 +1,230 @@
+#+title: Smart contract for a lotto
+#+author: Gabriel & Nicolas
+#+options: tex:t
+
+This file describes the [[Design]] of a smart contract to implement a lotto on the
+Cardano blockchain (/i.e./ using the EUTxO model). It also discusses its
+[[Limitations]] and documents [[Other Design Ideas]].
+
+* Design
+** Overview
+A lotto proceeds as follows:
+1. A lotto is opened by an administrator with some initial money, the salted
+   hash of some secret and a deadline. An NFT (hereafter called the /seal/)
+   guarantees that the lotto was created in a reasonable way, and allows people
+   to identify non ambiguously instances of the lotto.
+2. Before the deadline, gamblers play on that opened lotto with some chosen
+   data. They update the lotto, adding their money to the pot and their data.
+3. After the deadline, the administrator resolves the lotto.
+   The resolution reveals the secret, dispatches the money to the winners and
+   sends the rest to the administrator.
+** Hypotheses
+1. We have a non-invertible hashing function.
+2. The administrator is faithful.
+** Example rollout
+[[./lotto-example.svg]]
+*** The Administrator Creates a UTxO of the Lotto
+- Output UTxOs:
+  1. The lotto with some datum. At this point, that could be any datum but
+     people won't play until one calls [[Initialise]].
+*** The Administrator Initialises the Game (redeemer ~Initialise~)
+Only allowed for the administrator.
+- Input UTxOs:
+  1. Any lotto, hereafter called “the” lotto.
+- Output UTxOs:
+  1. The lotto with a /seal/ that identifies the instance uniquely and proves
+     that it has been created in a sensible way.
+*** A Gambler Plays (redeemer ~Play~)
+Only available before ~deadline~.
+- Input UTxOs:
+  1. The lotto.
+  2. The player carrying enough money.
+- Output UTxOs:
+  1. The lotto with (at least ~bidAmount~) more money and an additional entry in
+     ~players~ carrying the signatory's ~PubKeyHash~ as well as a /word/, /i.e./ some
+     byte string of the player's choice.
+*** The Administrator Resolves the Game (redeemer ~Resolve~)
+Only available after ~deadline~.
+- Input UTxOs:
+  1. The lotto.
+- Output UTxOs:
+  1. The administrator getting the leftover money.
+  2. Outputs dispatching the money among the winners (see [[Winning]]).
+** Datums, Redeemers, etc.
+The types are given in pseudo-Haskell as documentation, because they are more
+readable than Plutarch types.
+*** Validator
+Data that need to be accessed to play the lotto are stored in the datum.
+For instance, the person resolving the lotto needs to know the margin
+in order to compute correctly the scores, so the margin ends up in
+the datum.
+#+begin_src haskell
+data LottoParameters = LottoParameters {
+  administrator :: PubKeyHash,
+  currency :: CurrencySymbol,
+  -- ^ The minting policy of the seal
+}
+
+-- | The type of values to guess
+type BidWord = ByteString
+
+data LottoDatum = LottoDatum {
+  -- The lotto carries a `Value` containing the pot and an NFT
+  -- identifying the game uniquely. Additionally:
+  secretSalt :: ByteString,
+  secretHash :: ByteString,
+  -- | How much one needs to offer a bid.
+  bidAmount :: Value 'Sorted 'Positive,
+  -- | Gambles must be done before the deadline.
+  deadline :: POSIXTime,
+  -- | Collection of gamblers and their guess
+  players :: Map PubKeyHash BidWord,
+  -- | How much of the pot goes to the administrator (in %).
+  margin :: Integer
+}
+
+data LottoRedeemer
+  = Initialise
+  | Play
+  | Resolve ByteString
+#+end_src
+*** Minting Policy
+#+begin_src haskell
+data SealRedeemer
+  = Open TxOutRef
+  -- ^ Create an NFT using the hash of the input UTxO containing the inital
+  -- datum
+  | Close -- ^ Burn the NFT and close the lotto
+#+end_src
+**** TODO Do we want to add parameters to the minting policy?
+eg. to carry the administrator's ~PubKeyHash~
+** Winning
+We rely on the existence of a score function of two arguments: the secret
+(revealed by the administator) and the player's chosen word. During lotto
+resolution, we compute the score of each player.
+Both the score function and the way the pot is dispatched between the
+players are not specified.
+One may for instance give all the pot to the players with the maximum
+score. or share proportionally to all the gamblers based on their score.
+The score function can for instance be the number of bits in common between
+~hash(secret ++ word)~ and ~hash(secret)~.
+** Seal minting policy specification
+A seal can be minted provided that:
+- the token name is the TxOut reference of a UTxO that is spent in the
+  transaction that mints the seal,
+- there is only one such seal minted
+There is no restriction on seal burning.
+** Per redeemer validator specification
+This section strives to specify as precisely how the validator should behave
+depending on the redeemer, using natural language.
+We say that a UTxO is the /current/ UTxO if it is the one
+whose validator is being run by the transaction. The /current/ datum
+is the datum of the current UTxO.
+*** Initialise
+An initialisation is valid when
+- the current datum is well-formed:
+  + its ~bidAmount~ is positive
+  + its list of gamblers is empty.
+  *Note:* To our knowledge, there is no way to check that the deadline is valid.
+- the input is not sealed
+- there is an output ~o~ whose address is also the script's one
+  + the value of ~o~ is the value of the current UTxO
+    with the addition of a seal
+  + the datum of ~o~ is the same as the current one
+  + the output ~o~ has a seal
+Because the minting policy allows to mint only one seal, and the input is not
+sealed, the output contains exactly one seal.
+
+*** Play
+A transaction whose redeemer is ~Play~ is valid if it meets
+the following conditions
+- The transaction happens before the deadline in the current datum
+- There is an output whose value is greater than the value of the input whose
+  validator is running, this output is locked by the script currently
+  running. Let ~o~ be that output.
+- The datum of ~o~ is the same as the current datum,
+  except for the player list
+- The player list of ~o~ contains exactly one more entry than
+  the current players list, the other mappings remain unaltered.
+  The tail of the players list of ~o~ is equal to the players list
+  of the current datum.
+- The value of ~o~ must be the current value with at least
+  ~bidAmount~ more value.
+- The value of ~o~ must have at most one seal
+*** Resolution
+- The administrator must have signed the transaction
+- Each player must be paid according to their score:
+  for any gambler ~g~, let ~s~ be their share; then the sum of
+  the values paid to ~g~ across all the outputs must be greater
+  or equal to ~s~.
+- The seal must be burned: there must not be any output that contains
+  the seal.
+
+* Limitations
+** The datum grows on each bid
+Each bid transaction increases the size of the datum of the
+lotto (specifically the length of the ~players~ list), hence increasing the
+fees for subsequent players.
+** The last transaction grows with the number of winners
+..and thus with the number of players, increasing the fees and potentially
+reaching the size limit for transactions.
+** Bids can only happen sequentially
+..potentially leading to clashes when multiple players attempt to bid at the
+same time.
+** A lotto depends on a faithful central authority
+Cf [[Hypotheses]].
+There are two ways to get rid of this limitation. Either we do not depend
+on any secret, and the unpredictability comes from the number of gamblers.
+Or each gambler provide a secret.
+** One can only play a fixed value
+** There is no way to cancel a running game
+** TODO Other limitations?
+** TODO Link those to their mitigation in [[Other Design Ideas]]
+* TODO Other Design Ideas
+** Use a the blockchain itself as unpredictable piece of data
+1. Using time is not possible, because, to our knowledge, there is no
+   way to obtain the precise time a transaction occurs.
+2. One can use the number of gamblers. In that case, if the lotto stops
+   after a fixed number of gambler, the last gambler can predict whether she or
+   he will win (and play or not, accordingly). If a deadline is used,
+   then gamblers will want to play last, leading to potential congestion of the
+   network. Furthermore, the outcome of a lotto can be guessed by replays.
+Both these solutions appear worse than using a gambler (or adminstrator)-given
+secret.
+** Stop the lotto when a certain amount of players has been reached
+Allows one to derive bounds on either the size of the datum or the number
+of transactions (depending on the implementation), at the risk of having a
+dangling lotto where nobody plays anymore but the lotto can't be resolved yet.
+** Create bid certificates
+   To avoid having a growing datum, each bid can generate an NFT along with the
+   fresh lotto. Gamblers' bids are hence not registered in the datum of the
+   lottery, avoiding its growth. However, all NFTs must be collected to resolve
+   the lottery.
+** Gamblers compute their score and get their money
+   A lotto behaves as follows:
+   1. The initialisation phase is unchanged is unchanged from the main
+      specification.
+   2. Bidding follows the [[Create bid certificates]] strategy.
+   3. The adminstrator reveals the secret. Once the secret is revealed, each
+      gambler computes his or her score and post a transaction which yields a
+      new NFT which certifies the authenticiy of the score.
+   4. Once all scores are computed, gamblers can collect their share based on
+      their score using transactions that use their score NFT and the lotto as
+      input.
+   This strategy allows to spread data across UTxOs and NFTs rather than
+   concentrating everything in the lotto datum. However, it involves many more
+   transactions than the current design.
+** Each gambler provide a secret
+   This tweak allows the lotto to not depend on faithful authority.
+   1. The initialisation is unchanged
+   2. Bidding follows  the [[Create bid certificates]] strategy, except that
+      bids are totally ordered into an increasing sequence (typically, the
+      first bid is tagged with 0, the second with 1, &c. what's important is to
+      have an increasing sequence of bids.
+   3. Each gambler reveal their secret in order to compute the word used to
+      compute scores (/e.g./ each secret word is sequentially hashed with a
+      common hash).
+   4. Then follows score computation and prize collect, as in
+      [[Gamblers compute their score and get their money]]
+   The order set in phase 2 prevents gamblers to influence phase 3 to
+   manipulate the outcome.

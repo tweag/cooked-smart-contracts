@@ -1,0 +1,47 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.35.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           lotto-onchain
+version:        0.0.1
+build-type:     Simple
+
+library
+  exposed-modules:
+      Lib
+      Seal
+      Validators
+  other-modules:
+      Paths_lotto_onchain
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wmissing-import-lists -haddock
+  build-depends:
+      base
+    , bytestring
+    , data-default
+    , optparse-applicative
+    , plutarch
+    , plutarch-extra
+    , ply-plutarch
+  default-language: Haskell2010
+
+executable lotto-onchain
+  main-is: Main.hs
+  other-modules:
+      Paths_lotto_onchain
+  hs-source-dirs:
+      exe
+  ghc-options: -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wmissing-import-lists -haddock
+  build-depends:
+      base
+    , bytestring
+    , data-default
+    , lotto-onchain
+    , optparse-applicative
+    , plutarch
+    , plutarch-extra
+    , ply-plutarch
+  default-language: Haskell2010

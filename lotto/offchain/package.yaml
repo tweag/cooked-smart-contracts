@@ -1,0 +1,59 @@
+---
+
+name: lotto-offchain
+version: 0.0.1
+
+ghc-options:
+  - -Wall
+  - -Wincomplete-uni-patterns
+  - -Wincomplete-record-updates
+  - -Wmissing-import-lists
+  - -haddock
+
+default-extensions:
+  - DataKinds
+  - NumericUnderscores
+  - TypeFamilies
+  - OverloadedStrings
+  - NoImplicitPrelude
+  - LambdaCase
+  - NamedFieldPuns
+  - StrictData
+
+dependencies:
+  - base
+  - bytestring
+  - data-default
+  - either
+  - text
+  - time
+  - prettyprinter
+  - optics
+  - optics-th
+  - optparse-applicative
+  - cardano-node-emulator
+  - plutus-ledger
+  - plutus-script-utils
+  - plutus-ledger-api
+  - plutus-tx
+  - plutus-core
+  - ply-core
+  - cooked-validators
+  - containers
+  - tasty
+  - tasty-hunit
+  - tasty-quickcheck
+
+library:
+  source-dirs: src
+
+executable:
+  main: Main.hs
+  source-dirs: exe
+  dependencies: lotto-offchain
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs: test
+    dependencies: lotto-offchain

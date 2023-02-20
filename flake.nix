@@ -24,6 +24,9 @@
         p-multisig-stateful/p-multisig-stateful.nix
         split/split.nix
         auction/auction.nix
+        lotto/lotto-common.nix
+        lotto/onchain/lotto-onchain.nix
+        lotto/offchain/lotto-offchain.nix
       ];
 
       perSystem = { pkgs, ... }: { formatter = pkgs.nixfmt; };
