@@ -26,7 +26,7 @@ jobs:
         cp -f lottoValidator.plutus lottoValidator.plutus.1
         cp -f sealMinting.plutus sealMinting.plutus.1
         popd
-        nix run .#lotto-onchain --ply
+        nix run .#lotto-onchain -- --ply
         pushd scripts
         diff lottoValidator.plutus lottoValidator.plutus.1
         diff sealMinting.plutus sealMinting.plutus.1
