@@ -1,0 +1,37 @@
+verbatim:
+  cabal-version: 3.4
+
+name: auction
+version: 0.1.0.0
+
+dependencies:
+  - base >= 4.9 && < 5
+  - cooked-validators
+  - prettyprinter
+  - data-default
+  - containers
+  - optics-core
+  - plutus-script-utils
+  - plutus-ledger-api
+  - plutus-ledger
+  - plutus-tx
+  - plutus-tx-plugin
+  - QuickCheck
+  - tasty
+  - tasty-hunit
+  - tasty-expected-failure
+
+library:
+  source-dirs: src
+  ghc-options:
+    -Wall
+
+tests:
+  spec:
+    source-dirs: tests
+    main: Spec.hs
+    dependencies:
+      - auction
+    ghc-options:
+      -threaded
+      -Wall

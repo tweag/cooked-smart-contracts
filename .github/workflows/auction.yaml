@@ -1,0 +1,21 @@
+name: Build and test auction contract
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ "*" ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    name: Build and run the test suites
+    steps:
+    - uses: actions/checkout@v3.1.0
+    - name: Install Nix
+      uses: cachix/install-nix-action@v18
+      with:
+        extra_nix_config: |
+          access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+    - name: Build and run the split contract
+      run: nix run .#auction
