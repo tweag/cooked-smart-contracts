@@ -13,30 +13,20 @@
 module UseCaseCrowdfundingSpec where
 
 import Control.Monad
-import Control.Monad.Writer
 import Cooked.MockChain
 import Cooked.Tx.Constraints
 import Data.Default
 import Data.Either (isRight)
-import Debug.Trace
 import qualified Ledger
 import qualified Ledger.Ada as Ada
-import qualified Ledger.TimeSlot as TimeSlot
 import qualified Ledger.Typed.Scripts as TScripts
-import qualified Ledger.Value as Value
-import qualified Plutus.Contract.StateMachine.ThreadToken as ThreadToken
 import Plutus.Contracts.Crowdfunding
-import qualified Plutus.Contracts.Currency as Currency
-import qualified Plutus.V1.Ledger.Contexts as Validation
-import qualified Plutus.V1.Ledger.Scripts as Scripts
 import qualified PlutusTx (compile)
 import qualified PlutusTx.Eq as Pl
-import Test.Hspec
 import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (QuickCheckTests (..), testProperty)
-import Text.Heredoc
 
 -- | We copy the validator since its not exported from Crowdfunding
 typedValidator :: Campaign -> TScripts.TypedValidator Crowdfunding
@@ -66,12 +56,13 @@ genCampaign :: (MonadBlockChain m) => Integer -> Ledger.POSIXTime -> Wallet -> m
 genCampaign collectDelta deadline owner = do
   startTime <- currentTime
   let collectDeadline = deadline + Ledger.POSIXTime collectDelta
-  return . (startTime,) $
-    Campaign
-      { campaignDeadline = startTime + deadline,
-        campaignCollectionDeadline = startTime + collectDeadline,
-        campaignOwner = Ledger.PaymentPubKeyHash $ walletPKHash owner
-      }
+  return
+    (startTime,
+     Campaign
+       { campaignDeadline = startTime + deadline,
+         campaignCollectionDeadline = startTime + collectDeadline,
+         campaignOwner = Ledger.PaymentPubKeyHash $ walletPKHash owner
+       })
 
 -- | Provides some funds to the campaign
 paysCampaign :: (MonadMockChain m) => Campaign -> Wallet -> Ledger.Value -> m ()
@@ -84,7 +75,7 @@ paysCampaign c w val =
 
 -- | Retrieve funds as being the owner
 retrieveFunds :: (MonadMockChain m) => Ledger.POSIXTime -> Campaign -> Wallet -> m ()
-retrieveFunds t c owner = do
+retrieveFunds _ c owner = do
   funds <- scriptUtxosSuchThat (typedValidator c) (\_ _ -> True)
   void $
     signs owner $
@@ -115,7 +106,7 @@ ownerCanRetrieveFunds =
       let c = theCampaign t
       paysCampaign c (wallet 3) (Ada.adaValueOf 3)
       paysCampaign c (wallet 4) (Ada.adaValueOf 4)
-      waitNMilliSeconds 25000
+      _ <- waitNMilliSeconds 25000
       retrieveFunds t c (wallet 1)
 
 -- Generates an arbitrary campaign, then generates arbitrary payments that execute
@@ -137,7 +128,7 @@ ownerCanRetrieveFundsQC =
 
           -- Now we must wait for the campaign deadline to pass, otherwise the
           -- funds won't be collectible
-          awaitTime (campaignDeadline c)
+          _ <- awaitTime (campaignDeadline c)
           retrieveFunds t0 c owner
 
           -- Finally, return the amount of money gathered by the owner

@@ -7,20 +7,15 @@
 module CrowdfundingSpec where
 
 import Control.Applicative
-import Control.Arrow
 import Control.Monad
 import Cooked.Attack
 import Cooked.Currencies
-import Cooked.Ltl
 import Cooked.MockChain
-import Cooked.MockChain.Wallet
 import Cooked.Tx.Constraints
 import qualified Crowdfunding as Cf
 import qualified Crowdfunding.Offchain as Cf
-import Data.Default
 import Data.List (isPrefixOf, (\\))
 import qualified Data.Map.Strict as M
-import Data.Maybe
 import qualified Ledger as L
 import qualified Ledger.Typed.Scripts as Scripts
 import qualified Ledger.Value as Value
@@ -31,6 +26,7 @@ import Test.Tasty.HUnit
 
 -- adding names to wallets
 
+alice, bob, charlie, dylan, eve, fred, greta, hank, iris, james :: Wallet
 alice = wallet 1
 
 bob = wallet 2
@@ -327,8 +323,8 @@ partialCrowdfund = do
   Cf.txIndividualFund (banana 3) sOut `as` eve
   Cf.txProjectFund (bananaParams t0) sOut `as` bob
     `withTweak` do
-      mintOneLessTweak (fst sOut)
-      removeMiscConstraintsTweak
+      _ <- mintOneLessTweak (fst sOut)
+      _ <- removeMiscConstraintsTweak
         ( \case
             mc@(SpendsScript _ _ out) | sOutValue out `Value.geq` banana 3 -> Just mc
             _ -> Nothing
@@ -347,7 +343,7 @@ partialCrowdfund = do
       [amount] <-
         removeMiscConstraintsTweak
           ( \case
-              mc@(Mints _ pol tok) | pol == mp -> Just $ Value.assetClassValueOf tok ac
+              (Mints _ pol tok) | pol == mp -> Just $ Value.assetClassValueOf tok ac
               _ -> Nothing
           )
       addMintsTweak

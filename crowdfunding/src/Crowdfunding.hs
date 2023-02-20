@@ -11,8 +11,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
-{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-specialise #-}
 
 -- These language extensions are just what Split.hs uses
@@ -189,7 +187,7 @@ mkRewardTokenPolicy txOut _ ctx
   | amnt == length contributors =
     traceIfFalse
       "Transaction does not have at least one input"
-      (length (L.txInfoInputs txi) > 0)
+      (Haskell.not $ Haskell.null $ L.txInfoInputs txi)
       && traceIfFalse
         "Not all contributors receive token + leftover value"
         (all validContribution contributors)

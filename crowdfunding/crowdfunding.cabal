@@ -1,6 +1,6 @@
 cabal-version: 3.4
 
--- This file has been generated from package.yaml by hpack version 0.35.1.
+-- This file has been generated from package.yaml by hpack version 0.35.2.
 --
 -- see: https://github.com/sol/hpack
 
@@ -18,44 +18,23 @@ library
       Paths_crowdfunding
   hs-source-dirs:
       src
-  ghc-options: -Wall -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+  ghc-options: -Wall -Werror
   build-depends:
       QuickCheck
-    , aeson
     , base >=4.9 && <5
-    , bytestring
     , containers
     , cooked-validators
     , data-default
-    , either
-    , flat
-    , foldl
-    , freer-extras
-    , freer-simple
-    , heredoc
-    , hspec
-    , lens
-    , mtl
-    , optics-core
-    , playground-common
-    , plutus-contract
     , plutus-core
     , plutus-ledger
     , plutus-ledger-api
-    , plutus-pab
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-plugin
     , plutus-use-cases
-    , scientific
-    , serialise >=0.2.3.0
-    , streaming
     , tasty
-    , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
-    , text
-    , transformers
   default-language: Haskell2010
 
 test-suite spec
@@ -69,43 +48,22 @@ test-suite spec
       Paths_crowdfunding
   hs-source-dirs:
       tests
-  ghc-options: -threaded
+  ghc-options: -threaded -Wall -Werror
   build-depends:
       QuickCheck
-    , aeson
     , base >=4.9 && <5
-    , bytestring
     , containers
     , cooked-validators
     , crowdfunding
     , data-default
-    , either
-    , flat
-    , foldl
-    , freer-extras
-    , freer-simple
-    , heredoc
-    , hspec
-    , lens
-    , mtl
-    , optics-core
-    , playground-common
-    , plutus-contract
     , plutus-core
     , plutus-ledger
     , plutus-ledger-api
-    , plutus-pab
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-plugin
     , plutus-use-cases
-    , scientific
-    , serialise >=0.2.3.0
-    , streaming
     , tasty
-    , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
-    , text
-    , transformers
   default-language: Haskell2010
