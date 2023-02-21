@@ -10,14 +10,11 @@
 
 module PMultiSigStatefulSpec where
 
-import Control.Arrow (second)
 import Control.Monad
 import qualified Cooked.Attack as Cooked
-import Cooked.Ltl
-import Cooked.MockChain
+import Cooked.MockChain hiding (params)
 import Cooked.Tx.Constraints
 import Data.Default
-import Data.Either (isLeft, isRight)
 import Data.Function (on)
 import Data.List (nub, nubBy)
 import Data.Maybe
@@ -27,16 +24,12 @@ import qualified Ledger.Ada as Pl
 import qualified Ledger.Typed.Scripts as Pl
 import PMultiSigStateful
 import qualified PMultiSigStateful.DatumHijacking as HJ
-import PMultiSigStateful.ToUPLC
 import qualified PlutusTx.AssocMap as AssocMap
-import qualified PlutusTx.IsData.Class as Pl
 import qualified PlutusTx.Prelude as Pl
 import qualified Test.QuickCheck as QC
 import Test.Tasty
-import Test.Tasty.ExpectedFailure
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (QuickCheckTests (..), testProperty)
-import Text.Heredoc
 
 -- * Writing a Test Suite
 
@@ -77,17 +70,17 @@ data ProposalSkel = ProposalSkel Integer Payment
 
 -- | Next, we can create proposals, which are simply an accumulator with no signees
 mkProposal :: MonadBlockChain m => Integer -> Payment -> m (Params, Pl.TxOutRef)
-mkProposal reqSigs pmt = do
+mkProposal reqSigs' p = do
   wpkh <- ownPaymentPubKeyHash
   utxos <- pkUtxos wpkh
   case utxos of
     (spendableOut : _) -> do
       let klass = threadTokenAssetClass $ fst spendableOut
-      let params = Params pkTable reqSigs klass
+      let params = Params pkTable reqSigs' klass
       let threadToken = paramsToken params
       _ <-
         validateTxConstrLbl
-          (ProposalSkel reqSigs pmt)
+          (ProposalSkel reqSigs' p)
           ( [mints [threadTokenPolicy (fst spendableOut) threadTokenName] threadToken]
               :=>: [
                      -- We don't have SpendsPK or PaysPK wrt the wallet `w`
@@ -95,8 +88,8 @@ mkProposal reqSigs pmt = do
                      -- we're working on.
                      paysScript
                        (pmultisig params)
-                       (Accumulator pmt [])
-                       (minAda <> paymentValue pmt <> threadToken)
+                       (Accumulator p [])
+                       (minAda <> paymentValue p <> threadToken)
                    ]
           )
       pure (params, fst spendableOut)
@@ -110,14 +103,14 @@ mkProposal reqSigs pmt = do
 --   twice, or even an attack where the attacker would execute the mkPay transaction
 --   but keep all the locked ada to themselves.
 mkSign :: MonadBlockChain m => Params -> Payment -> PrivateKey -> m ()
-mkSign params pmt sk = do
+mkSign params p sk = do
   pkh <- ownPaymentPubKeyHash
   void $
     validateTxConstrOpts
       (def {adjustUnbalTx = True})
       [paysScript (pmultisig params) (Sign pkh sig) mkSignLockedCost]
   where
-    sig = Pl.sign (Pl.sha2_256 $ packPayment pmt) sk ""
+    sig = Pl.sign (Pl.sha2_256 $ packPayment p) sk ""
 
     -- Whenever a wallet is signing a payment, it must lock away a certain amount of ada
     -- in an UTxO, otherwise, the Sign UTxO can't be created.
@@ -330,7 +323,7 @@ fakeValidator = HJ.stealerValidator $ HJ.StealerParams (walletPKHash $ wallet 9)
 
 datumHijacking :: (MonadMockChain m) => m ()
 datumHijacking = do
-  (params, tokenOutRef) <- mkProposal 2 thePayment `as` wallet 1
+  (params, _tokenOutRef) <- mkProposal 2 thePayment `as` wallet 1
   mkSign params thePayment (walletSK $ wallet 1) `as` wallet 1
   mkSign params thePayment (walletSK $ wallet 2) `as` wallet 2
   mkSign params thePayment (walletSK $ wallet 3) `as` wallet 3

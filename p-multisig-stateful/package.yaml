@@ -5,53 +5,29 @@ name: p-multisig-stateful
 version: 0.1.0.0
 
 dependencies:
-  - base >= 4.9 && < 5
-  # Internal dependencies of the test suite
+  - base
+  - bytestring
   - cooked-validators
-  # Other libraries that you will likely need to write a good test-suide:
+  - aeson
+  - data-default
+  - flat
   - QuickCheck
   - tasty
   - tasty-hunit
   - tasty-quickcheck
   - tasty-expected-failure
-  - heredoc
-  # Dependencies of the example contracts, these come from the client
-  - aeson
-  - bytestring
-  - containers
-  - data-default
-  - either
-  - flat
-  - foldl
-  - freer-extras
-  - freer-simple
-  - hspec
-  - lens
-  - mtl
-  - plutus-contract
-  - plutus-core
-  - plutus-ledger
-  - plutus-ledger-api
-  - plutus-pab
   - plutus-tx
   - plutus-tx-plugin
-  - plutus-use-cases
+  - plutus-ledger-api
+  - plutus-ledger
   - plutus-script-utils
   - playground-common
-  - scientific
-  - serialise >= 0.2.3.0
-  - streaming
-  - text
-  - transformers
-  - optics-core
 
 library:
   source-dirs: src
   ghc-options:
     -Wall
-    -fobject-code
-    -fno-ignore-interface-pragmas
-    -fno-omit-interface-pragmas
+    -Werror
 
 tests:
   spec:
@@ -61,3 +37,5 @@ tests:
       - p-multisig-stateful
     ghc-options:
       -threaded
+      -Wall
+      -Werror

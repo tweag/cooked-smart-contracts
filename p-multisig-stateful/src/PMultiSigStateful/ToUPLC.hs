@@ -4,7 +4,7 @@
 
 module PMultiSigStateful.ToUPLC where
 
-import Data.ByteString
+import Data.ByteString (ByteString)
 import Flat (flat)
 import qualified Ledger.Typed.Scripts as Scripts
 import PMultiSigStateful
