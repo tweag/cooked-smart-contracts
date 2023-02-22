@@ -3,21 +3,11 @@
 
 module SplitUPLCSpec where
 
-import Control.Monad
 import Cooked.MockChain
-import Cooked.Tx.Constraints
-import Data.Either (isLeft, isRight)
-import Data.Maybe (fromMaybe)
-import qualified Ledger.Ada as Pl
-import qualified Ledger.Typed.Scripts as Pl
 import qualified Plutus.Script.Utils.V1.Typed.Scripts.Validators as Scripts
-import PlutusTx.Builtins
-import qualified PlutusTx.IsData.Class as Pl
 import qualified Split
 import Split.OffChain
 import Split.ToUPLC (splitBS)
-import qualified SplitSpec
-import Test.Hspec
 import Test.Tasty
 import Test.Tasty.ExpectedFailure
 import Test.Tasty.HUnit
@@ -38,7 +28,7 @@ tests =
     [ testCase "Simple example succeeds" $
         testSucceeds $ do
           script <- case unsafeTypedValidatorFromBS splitBS of
-            Left err -> fail "couldn't load the Split contract from its binary repr"
+            Left _ -> fail "couldn't load the Split contract from its binary repr"
             Right r -> return r
           txLock script lockParams `as` wallet 1
           txUnlock script `as` wallet 2,
@@ -46,7 +36,7 @@ tests =
       expectFail $
         testCase "Same address as compiled script" $
           case unsafeTypedValidatorFromBS @Split.Split splitBS of
-            Left err -> assertFailure "couldn't load the Split contract from its binary repr"
+            Left _ -> assertFailure "couldn't load the Split contract from its binary repr"
             Right res ->
               let defAddr = Scripts.validatorAddress Split.splitValidator
                   bsAddr = Scripts.validatorAddress res

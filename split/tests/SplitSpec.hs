@@ -5,12 +5,10 @@ module SplitSpec where
 import Control.Monad
 import Cooked.MockChain
 import Cooked.Tx.Constraints
-import Data.Either (isLeft, isRight)
 import Data.Maybe (fromMaybe)
 import qualified Ledger.Ada as Pl
 import qualified Split
 import Split.OffChain
-import Test.Hspec
 import Test.Tasty
 import Test.Tasty.ExpectedFailure
 import Test.Tasty.HUnit
@@ -30,7 +28,7 @@ txUnlock' ::
   Wallet ->
   m ()
 txUnlock' mRecipient1 mRecipient2 mAmountChanger issuer = do
-  (output, datum@(Split.SplitDatum r1 r2 amount)) : _ <-
+  (output, Split.SplitDatum r1 r2 amount) : _ <-
     scriptUtxosSuchThat Split.splitValidator (isARecipient $ walletPKHash issuer)
   let half = div amount 2
       share1 = fromMaybe id mAmountChanger half
@@ -61,8 +59,8 @@ data TxUnlock' = TxUnlock' (Maybe Wallet) (Maybe Wallet) (Maybe Integer) derivin
 -- goes to the issuer of the transaction.
 txUnlockAttack :: MonadMockChain m => Wallet -> m ()
 txUnlockAttack issuer = do
-  (output1, datum1@(Split.SplitDatum r11 r12 amount1))
-    : (output2, datum2@(Split.SplitDatum r21 r22 amount2))
+  (output1, Split.SplitDatum r11 r12 amount1)
+    : (output2, Split.SplitDatum r21 r22 amount2)
     : _ <-
     scriptUtxosSuchThat Split.splitValidator (\_ _ -> True)
   unless (r12 == r22) (fail "second recipiend must match")

@@ -16,25 +16,20 @@ dependencies:
   - bytestring
   - data-default
   - flat
-  - hspec
-  - plutus-core
   - plutus-ledger
   - plutus-ledger-api
   - plutus-tx
   - plutus-tx-plugin
-  - plutus-contract
   - playground-common
   - plutus-script-utils
-  - text
+  - plutus-contract
   - optics-core
 
 library:
   source-dirs: src
   ghc-options:
     -Wall
-    -fobject-code
-    -fno-ignore-interface-pragmas
-    -fno-omit-interface-pragmas
+    -Werror
 
 tests:
   spec:
@@ -44,3 +39,5 @@ tests:
       - split-contract
     ghc-options:
       -threaded
+      -Wall
+      -Werror

@@ -19,7 +19,7 @@ library
       Paths_split_contract
   hs-source-dirs:
       src
-  ghc-options: -Wall -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+  ghc-options: -Wall -Werror
   build-depends:
       QuickCheck
     , aeson
@@ -28,11 +28,9 @@ library
     , cooked-validators
     , data-default
     , flat
-    , hspec
     , optics-core
     , playground-common
     , plutus-contract
-    , plutus-core
     , plutus-ledger
     , plutus-ledger-api
     , plutus-script-utils
@@ -42,7 +40,6 @@ library
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
-    , text
   default-language: Haskell2010
 
 test-suite spec
@@ -56,7 +53,7 @@ test-suite spec
       Paths_split_contract
   hs-source-dirs:
       tests
-  ghc-options: -threaded
+  ghc-options: -threaded -Wall -Werror
   build-depends:
       QuickCheck
     , aeson
@@ -65,11 +62,9 @@ test-suite spec
     , cooked-validators
     , data-default
     , flat
-    , hspec
     , optics-core
     , playground-common
     , plutus-contract
-    , plutus-core
     , plutus-ledger
     , plutus-ledger-api
     , plutus-script-utils
@@ -80,5 +75,4 @@ test-suite spec
     , tasty-expected-failure
     , tasty-hunit
     , tasty-quickcheck
-    , text
   default-language: Haskell2010
