@@ -2,6 +2,7 @@ module Main where
 
 import qualified Cooked
 import qualified Cooked.MockChain.Testing as Testing
+import qualified Cooked.MockChain.Staged
 import Data.Default (def)
 import qualified Lib
 import qualified Scenarii
@@ -9,7 +10,7 @@ import Test.Tasty (TestTree, defaultMain, testGroup)
 import Test.Tasty.HUnit (testCase)
 import Prelude
 
-testOnchainFails :: (Testing.IsProp prop, Show a) => Cooked.StagedMockChain a -> prop
+testOnchainFails :: (Testing.IsProp prop, Show a) => Cooked.MockChain.Staged.StagedMockChain a -> prop
 testOnchainFails = Testing.testFailsFrom' def (Testing.isCekEvaluationFailure def) def
 
 tests :: TestTree

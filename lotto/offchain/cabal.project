@@ -24,11 +24,11 @@ repository cardano-haskell-packages
 source-repository-package
   type: git
   location: https://github.com/tweag/plutus-libs
-  -- Committed on the 15th of February 2023
-  tag: e2ae26f47eb667f28557bc5b351457d73b1a39aa
+  -- Committed on the 24th of February 2023
+  tag: a23f5c6b65420f9261e7ed13fdfe72de14a53c0f
   subdir:
     cooked-validators
-  --sha256: 0qgvg4j1v18ssvc6frxs9i1swaym0sa6ak513rhcci2if96zs8wc
+  --sha256: 0mrhsp2g4g69i3cffm8afak6gw27wbvi64sps53mq8k0iibnia7x
 
 source-repository-package
   type: git
