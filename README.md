@@ -19,8 +19,7 @@ tests for the crowdfunding contract with
 
 ```command
 $ cd crowdfunding
-$ nix develop .#crowdfunding
-$ cabal test all
+$ nix run .#crowdfunding
 ```
 
 ## Contribute
