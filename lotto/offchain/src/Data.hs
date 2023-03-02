@@ -28,6 +28,7 @@ module Data
     rinitialise,
     rplay,
     rresolve,
+    createMalformed
   )
 where
 
@@ -111,6 +112,29 @@ instance Tx.Eq LottoDatum where
 
 PlutusTx.makeIsDataIndexed ''LottoDatum [('LottoDatum, 0)]
 PlutusTx.makeLift ''LottoDatum
+
+data LottoDatumMalformed = LottoDatumMalformed
+  { _msecretHash :: BuiltinByteString,
+    _msecretSalt :: BuiltinByteString,
+    _mdeadline :: POSIXTime,
+    _mbidAmount :: Value,
+    _mplayers :: Map PubKeyHash BuiltinByteString,
+    _mmargin :: Tx.Rational
+  }
+  deriving (Show, Eq)
+
+PlutusTx.makeIsDataIndexed ''LottoDatumMalformed [('LottoDatumMalformed, 0)]
+PlutusTx.makeLift ''LottoDatumMalformed
+
+createMalformed :: Data.LottoDatum -> LottoDatumMalformed
+createMalformed datum = LottoDatumMalformed {
+    _msecretHash = _secretHash datum,
+    _msecretSalt = _secretSalt datum,
+    _mdeadline = _deadline datum,
+    _mbidAmount = _bidAmount datum,
+    _mplayers = _players datum,
+    _mmargin = _margin datum
+  }
 
 -- | Extract and type the datum of a 'LedgerV2.TxOut' as a Lotto datum
 datumOfTxOut :: Cooked.MonadBlockChainWithoutValidation m => LedgerV2.TxOutRef -> m (Maybe LottoDatum)

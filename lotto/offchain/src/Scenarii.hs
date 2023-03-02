@@ -130,6 +130,7 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
     Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
   let txSkelIns = HMap.singleton authenticatedLottoRef Data.play
   inDatum <- fromJust <$> Data.datumOfTxOut authenticatedLottoRef
+  let malformedDatum = Data.createMalformed inDatum
   let skeleton = Cooked.txSkelTemplate
           { -- The transaction is valid up to the deadline
             Cooked.txSkelValidityRange = LedgerV2.to $ view Data.deadline inDatum - 1,
