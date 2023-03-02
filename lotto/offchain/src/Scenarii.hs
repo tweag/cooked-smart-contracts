@@ -9,7 +9,7 @@ import qualified Data
 import Data.Default (def)
 import Data.Functor ((<&>))
 import qualified Data.Map as HMap
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import qualified Data.Set as Set
 import qualified Lib
 import qualified Lotto
@@ -117,24 +117,23 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
     Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
   let txSkelIns = HMap.singleton authenticatedLottoRef Data.play
   inDatum <- fromJust <$> Data.datumOfTxOut authenticatedLottoRef
-  skeleton <-
-    Cooked.txSkelTemplate
-      { -- The transaction is valid up to the deadline
-        Cooked.txSkelValidityRange = LedgerV2.to $ view Data.deadline inDatum - 1,
-        -- That @- 1@ has no real reason to be there, but without that,
-        -- validation fails. The interval displayed by the onchain code
-        -- is incremented by 1 for some reason (maybe because of
-        -- boundaries inclusiveness)
-        Cooked.txSkelOuts =
-          [ Cooked.paysScript
-              (Lib.mkTypedValidator script)
-              (Data.addPlayer alice (Lib.hashSecret guess (Just salt)) inDatum)
-              (view Cooked.outputValueL authenticatedLotto
-               <> amount)
-          ],
-        Cooked.txSkelIns,
-        Cooked.txSkelSigners = [alice]
-      }
+  let skeleton = Cooked.txSkelTemplate
+          { -- The transaction is valid up to the deadline
+            Cooked.txSkelValidityRange = LedgerV2.to $ view Data.deadline inDatum - 1,
+            -- That @- 1@ has no real reason to be there, but without that,
+            -- validation fails. The interval displayed by the onchain code
+            -- is incremented by 1 for some reason (maybe because of
+            -- boundaries inclusiveness)
+            Cooked.txSkelOuts =
+              [ Cooked.paysScript
+                  (Lib.mkTypedValidator Lotto.script)
+                  (Data.addPlayer alice (Lib.hashSecret "FIXME" (Just salt)) inDatum)
+                  (view Cooked.outputValueL authenticatedLotto
+                   <> amount)
+              ],
+            Cooked.txSkelIns,
+            Cooked.txSkelSigners = [alice]
+          }
   play <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
   void $ Lotto.resolve secret play seal
 
