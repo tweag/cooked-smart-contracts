@@ -115,13 +115,26 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
         [alice]
   (authenticatedLottoRef, authenticatedLotto, seal) <-
     Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
+  let txSkelIns = HMap.singleton authenticatedLottoRef Data.play
+  inDatum <- fromJust <$> Data.datumOfTxOut authenticatedLottoRef
   skeleton <-
-    Lotto.splay
-      authenticatedLottoRef
-      (view Cooked.outputValueL authenticatedLotto)
-      (Lib.hashSecret guess (Just salt))
-      alice
-      (amount // Lib.ada 10)
+    Cooked.txSkelTemplate
+      { -- The transaction is valid up to the deadline
+        Cooked.txSkelValidityRange = LedgerV2.to $ view Data.deadline inDatum - 1,
+        -- That @- 1@ has no real reason to be there, but without that,
+        -- validation fails. The interval displayed by the onchain code
+        -- is incremented by 1 for some reason (maybe because of
+        -- boundaries inclusiveness)
+        Cooked.txSkelOuts =
+          [ Cooked.paysScript
+              (Lib.mkTypedValidator script)
+              (Data.addPlayer alice (Lib.hashSecret guess (Just salt)) inDatum)
+              (view Cooked.outputValueL authenticatedLotto
+               <> amount)
+          ],
+        Cooked.txSkelIns,
+        Cooked.txSkelSigners = [alice]
+      }
   play <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
   void $ Lotto.resolve secret play seal
 
