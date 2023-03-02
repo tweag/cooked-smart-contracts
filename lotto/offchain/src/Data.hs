@@ -118,7 +118,7 @@ data LottoDatumMalformed = LottoDatumMalformed
     _msecretSalt :: BuiltinByteString,
     _mdeadline :: POSIXTime,
     _mbidAmount :: Value,
-    _mplayers :: Map PubKeyHash BuiltinByteString,
+    _mplayers :: Map PubKeyHash (),
     _mmargin :: Tx.Rational
   }
   deriving (Show, Eq)
@@ -156,7 +156,7 @@ createMalformed datum = LottoDatumMalformed {
     _msecretSalt = _secretSalt datum,
     _mdeadline = _deadline datum,
     _mbidAmount = _bidAmount datum,
-    _mplayers = _players datum,
+    _mplayers = Map.mapWithKey (\_ _ -> ()) (_players datum),
     _mmargin = _margin datum
   }
 
