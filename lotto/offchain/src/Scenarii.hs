@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeApplications #-}
+
 -- | Define sequences of transactions.
 module Scenarii where
 
@@ -19,6 +21,17 @@ import qualified Plutus.V2.Ledger.Api as LedgerV2
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Prelude (BuiltinByteString)
 import qualified PlutusTx.Prelude as Tx
+
+import qualified Ledger.Scripts as Pl hiding (validatorHash)
+import qualified Ledger.Slot as Pl
+import qualified Ledger.Typed.Scripts as Pl
+import qualified Plutus.Script.Utils.Ada as Pl
+import qualified Plutus.Script.Utils.Value as Pl hiding (adaSymbol, adaToken)
+import qualified Plutus.V1.Ledger.Interval as Pl
+import qualified Plutus.V2.Ledger.Api as Pl hiding (TxOut, adaSymbol, adaToken)
+import qualified Plutus.V2.Ledger.Tx as Pl
+import qualified PlutusTx.Prelude as Pl
+
 import Prelude
 
 infixr 9 //
@@ -125,11 +138,18 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
             -- is incremented by 1 for some reason (maybe because of
             -- boundaries inclusiveness)
             Cooked.txSkelOuts =
-              [ Cooked.paysScript
-                  (Lib.mkTypedValidator Lotto.script)
-                  (Data.addPlayer alice (Lib.hashSecret "FIXME" (Just salt)) inDatum)
-                  (view Cooked.outputValueL authenticatedLotto
-                   <> amount)
+              [ Cooked.Pays
+                  ( Cooked.ConcreteOutput
+                      (Lib.mkTypedValidator Lotto.script)
+                      Nothing
+                      (view Cooked.outputValueL authenticatedLotto <> amount)
+                      (Cooked.TxSkelOutDatum
+                          (Data.addPlayer
+                              alice
+                              (Lib.hashSecret "FIXME" (Just salt))
+                              inDatum))
+                      (Nothing @(Pl.Versioned Pl.Script))
+                  )
               ],
             Cooked.txSkelIns,
             Cooked.txSkelSigners = [alice]
