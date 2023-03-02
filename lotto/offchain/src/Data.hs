@@ -123,6 +123,30 @@ data LottoDatumMalformed = LottoDatumMalformed
   }
   deriving (Show, Eq)
 
+makeLenses ''LottoDatumMalformed
+
+instance Cooked.PrettyCooked LottoDatumMalformed where
+  prettyCookedOpt _ dat =
+    braces $
+      align
+        ( vsep
+            [ "secret (hash):" <+> "0x" <> prettyByteString (view msecretHash dat),
+              "salt:" <+> pretty (view msecretSalt dat),
+              "deadline:" <+> pretty (view mdeadline dat),
+              "bidAmount:" <+> pretty (view mbidAmount dat),
+              "margin:" <+> prettyRat (view mmargin dat),
+              "players:" <+> pretty (view mplayers dat)
+            ]
+        )
+    where
+      prettyRat r =
+        pretty (Tx.numerator r) <+> "/" <+> pretty (Tx.denominator r)
+      -- Print a sequence of words
+      prettyByteString = B.foldr (mappend . PP.viaShow) mempty . Tx.fromBuiltin
+
+instance Tx.Eq LottoDatumMalformed where
+  (==) = (==)
+
 PlutusTx.makeIsDataIndexed ''LottoDatumMalformed [('LottoDatumMalformed, 0)]
 PlutusTx.makeLift ''LottoDatumMalformed
 
