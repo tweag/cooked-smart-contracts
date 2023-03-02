@@ -9,28 +9,20 @@ module AuctionSpec where
 import qualified Auction as A
 import qualified Auction.Offchain as A
 import Control.Applicative
-import Control.Arrow
 import Control.Monad
 import Cooked
 import Data.Default
 import Data.List (isPrefixOf)
 import qualified Data.Map as Map
-import qualified Data.Map.Strict as M
 import Data.Maybe
-import qualified Data.Set as Set
 import Optics.Core
 import qualified Plutus.Script.Utils.Ada as Ada
 import qualified Plutus.Script.Utils.Scripts as Pl
-import qualified Plutus.Script.Utils.V1.Scripts as Pl
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as Pl
-import Plutus.Script.Utils.Value (Value)
 import qualified Plutus.Script.Utils.Value as Pl
 import qualified Plutus.Script.Utils.Value as Value
 import qualified Plutus.V1.Ledger.Interval as Pl
-import qualified Plutus.V2.Ledger.Api as Pl
 import qualified PlutusTx.Numeric as Pl
-import qualified Prettyprinter as PP
-import Test.QuickCheck.Modifiers (NonZero (..))
 import Test.Tasty
 import Test.Tasty.ExpectedFailure
 import Test.Tasty.HUnit
@@ -67,58 +59,56 @@ hammerToWithdraw = do
 
 noBids :: MonadBlockChain m => m ()
 noBids = do
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let deadline = t0 + 60_000
   offerOref <- A.txOffer (wallet 1) (banana 2) 30_000_000
-  A.txSetDeadline (wallet 1) offerOref deadline
-  awaitTime (deadline + 1)
+  void $ A.txSetDeadline (wallet 1) offerOref deadline
+  deadlineSlot <- getEnclosingSlot deadline
+  void $ awaitSlot $ deadlineSlot + 1
   A.txHammer (wallet 1) offerOref
   return ()
 
 oneBid :: MonadBlockChain m => m ()
 oneBid = do
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let deadline = t0 + 60_000
   offerOref <- A.txOffer (wallet 1) (banana 2) 30_000_000
-  A.txSetDeadline (wallet 1) offerOref deadline
-  A.txBid (wallet 2) offerOref 30_000_000
-  awaitTime (deadline + 1)
+  void $ A.txSetDeadline (wallet 1) offerOref deadline
+  void $ A.txBid (wallet 2) offerOref 30_000_000
+  deadlineSlot <- getEnclosingSlot deadline
+  void $ awaitSlot $ deadlineSlot + 1
   A.txHammer (wallet 3) offerOref -- It doesn't matter which wallet hammers here
 
 twoBids :: MonadBlockChain m => m ()
 twoBids = do
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let deadline = t0 + 60_000
   offerOref <- A.txOffer (wallet 1) (banana 2) 30_000_000
-  A.txSetDeadline (wallet 1) offerOref deadline
-  A.txBid (wallet 2) offerOref 30_000_000
-  A.txBid (wallet 3) offerOref 40_000_000
-  awaitTime (deadline + 1)
+  void $ A.txSetDeadline (wallet 1) offerOref deadline
+  void $ A.txBid (wallet 2) offerOref 30_000_000
+  void $ A.txBid (wallet 3) offerOref 40_000_000
+  deadlineSlot <- getEnclosingSlot deadline
+  void $ awaitSlot $ deadlineSlot + 1
   A.txHammer (wallet 1) offerOref
 
 twoAuctions :: MonadBlockChain m => m ()
 twoAuctions = do
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let deadline1 = t0 + 60_000
       deadline2 = t0 + 90_000
   offerOref1 <- A.txOffer (wallet 1) (banana 2) 30_000_000
   offerOref2 <- A.txOffer (wallet 1) (banana 3) 50_000_000
-  A.txSetDeadline (wallet 1) offerOref1 deadline1
-  A.txSetDeadline (wallet 1) offerOref2 deadline2
-  A.txBid (wallet 2) offerOref1 30_000_000
-  A.txBid (wallet 3) offerOref2 50_000_000
-  A.txBid (wallet 4) offerOref2 60_000_000
-  awaitTime (deadline1 + 1)
+  void $ A.txSetDeadline (wallet 1) offerOref1 deadline1
+  void $ A.txSetDeadline (wallet 1) offerOref2 deadline2
+  void $ A.txBid (wallet 2) offerOref1 30_000_000
+  void $ A.txBid (wallet 3) offerOref2 50_000_000
+  void $ A.txBid (wallet 4) offerOref2 60_000_000
+  deadline1Slot <- getEnclosingSlot deadline1
+  void $ awaitSlot $ deadline1Slot + 1
   A.txHammer (wallet 1) offerOref1
-  awaitTime (deadline2 + 1)
+  deadline2Slot <- getEnclosingSlot deadline2
+  void $ awaitSlot $ deadline2Slot + 1
   A.txHammer (wallet 1) offerOref2
-
--- | helper function to compute what the given wallet owns in the
--- given state
-holdingInState :: UtxoState -> Wallet -> Value
-holdingInState (UtxoState m) w
-  | Just vs <- M.lookup (walletAddress w) m = utxoPayloadSetTotal vs
-  | otherwise = mempty
 
 successfulSingle :: TestTree
 successfulSingle =
@@ -159,13 +149,14 @@ forbiddenHammerToWithdraw = do
 
 failingTwoBids :: MonadBlockChain m => m ()
 failingTwoBids = do
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let deadline = t0 + 60_000
   offerOref <- A.txOffer (wallet 1) (banana 2) 30_000_000
-  A.txSetDeadline (wallet 1) offerOref deadline
-  A.txBid (wallet 2) offerOref 30_000_000
-  A.txBid (wallet 3) offerOref 30_000_000
-  awaitTime (deadline + 1)
+  void $ A.txSetDeadline (wallet 1) offerOref deadline
+  void $ A.txBid (wallet 2) offerOref 30_000_000
+  void $ A.txBid (wallet 3) offerOref 30_000_000
+  deadlineSlot <- getEnclosingSlot deadline
+  void $ awaitSlot $ deadlineSlot + 1
   A.txHammer (wallet 1) offerOref
 
 failingSingle :: TestTree
@@ -232,12 +223,16 @@ tryDoubleSat =
         (txSkelInsL % folded)
         ( \redeemer ->
             case txSkelTypedRedeemer @A.Auction redeemer of
-              Just (A.Bid (A.BidderInfo bid bidder)) -> do
-                extraUtxos <- filteredUtxosWithDatums $ isScriptOutputFrom' A.auctionValidator
+              Just (A.Bid (A.BidderInfo _bid bidder)) -> do
+                extraUtxos <-
+                  runUtxoSearch $
+                    utxosAtSearch (Pl.validatorAddress A.auctionValidator)
+                      `filterWith` resolveDatum
+                      `filterWithPure` isOutputWithInlineDatumOfType @A.AuctionState
                 return $
                   mapMaybe
                     ( \(oref, output) -> case output ^. outputDatumL of
-                        ResolvedOrInlineDatum (A.NoBids seller minBid _deadline) ->
+                        (A.NoBids _ minBid _) ->
                           Just
                             ( Map.singleton oref $
                                 TxSkelRedeemerForScript
@@ -245,7 +240,7 @@ tryDoubleSat =
                               [],
                               mempty
                             )
-                        ResolvedOrInlineDatum (A.Bidding seller _deadline (A.BidderInfo prevBid prevBidder)) ->
+                        (A.Bidding _ _ (A.BidderInfo prevBid _)) ->
                           Just
                             ( Map.singleton oref $
                                 TxSkelRedeemerForScript
@@ -273,9 +268,9 @@ tryTamperDatum =
   somewhere
     ( tamperDatumTweak @A.AuctionState
         ( \case
-            A.NoBids seller minBid deadline ->
+            A.NoBids _ minBid deadline ->
               Just $ A.NoBids (walletPKHash $ wallet 6) minBid deadline
-            A.Bidding seller deadline bidderInfo ->
+            A.Bidding _ deadline bidderInfo ->
               Just $ A.Bidding (walletPKHash $ wallet 6) deadline bidderInfo
             _ -> Nothing
         )
@@ -324,7 +319,7 @@ tryAddToken :: (Alternative m, MonadModalBlockChain m) => m ()
 tryAddToken =
   somewhere
     ( addTokenAttack
-        (const [(Pl.TokenName "exampleTokenName", NonZero 1)])
+        (const [(Pl.TokenName "exampleTokenName", 1)])
         (wallet 6)
     )
     simpleTraces
@@ -345,40 +340,43 @@ exploitAddToken = do
   -- in order to mint an extra token of Alice's auction's thread token asset
   -- class.
   eveOfferOref <- A.txOffer eve mempty 1
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let eveDeadline = t0 + 60_000
-  A.txSetDeadline eve eveOfferOref eveDeadline
-    `withTweak` ( do
-                    addMintTweak
-                      ( Pl.Versioned A.threadTokenPolicy Pl.PlutusV2,
-                        SomeMintsRedeemer eveOfferOref, -- Use the redeemer that is already on the transaction!
-                        aliceNftTokenName,
-                        NonZero 1
-                      )
-                    addOutputTweak $ paysPK (walletPKHash eve) aliceNft
-                )
+  void $
+    A.txSetDeadline eve eveOfferOref eveDeadline
+      `withTweak` ( do
+                      addMintTweak
+                        ( Pl.Versioned A.threadTokenPolicy Pl.PlutusV2,
+                          SomeMintsRedeemer eveOfferOref, -- Use the redeemer that is already on the transaction!
+                          aliceNftTokenName,
+                          1
+                        )
+                      addOutputTweak $ paysPK (walletPKHash eve) aliceNft
+                  )
 
   -- Eve bids on her own offer, and also pays her forged NFT for Alice's auction
   -- on the same UTxO. This means that now there is a UTxO at the
   -- 'auctionValidator' which is identified by two NFTs: one for Alice's
   -- auction, and one for Eve's.
-  A.txBid eve eveOfferOref 1
-    `withTweak` overTweak
-      ( singular $
-          txSkelOutsL
-            % traversed
-            % txSkelOutOwnerTypeP @(Pl.TypedValidator A.Auction)
-            % outputValueL
-      )
-      (<> aliceNft)
+  void $
+    A.txBid eve eveOfferOref 1
+      `withTweak` overTweak
+        ( singular $
+            txSkelOutsL
+              % traversed
+              % txSkelOutOwnerTypeP @(Pl.TypedValidator A.Auction)
+              % outputValueL
+        )
+        (<> aliceNft)
 
   -- Bob thinks he's bidding for Alice's auction (which is not even opened
   -- yet!). In fact, his money is put into Eve's auction.
-  A.txBid bob aliceOfferOref 40_000_000
+  void $ A.txBid bob aliceOfferOref 40_000_000
 
   -- After the deadline of Eve's auction, anyone can hammer it, and this will
   -- pay Bob's money to Eve, while Bob will only get the forged NFT in exchange.
-  awaitTime eveDeadline
+  slotEveDeadline <- getEnclosingSlot eveDeadline
+  void $ awaitSlot $ slotEveDeadline + 1
   A.txHammer eve eveOfferOref
   where
     alice = wallet 1
@@ -399,50 +397,54 @@ exploitDoubleSat = do
   -- they both belong to her, this vulnerability applies to any two auctions)
   offer1 <- A.txOffer alice (banana 2) 40_000_000
   offer2 <- A.txOffer alice (banana 3) 60_000_000
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let t1 = t0 + 60_000
       t2 = t0 + 90_000
-  A.txSetDeadline alice offer1 t1
-  A.txSetDeadline alice offer2 t2
+  void $ A.txSetDeadline alice offer1 t1
+  void $ A.txSetDeadline alice offer2 t2
   -- People now bid on the auctions until Bob is the highest bidder on both
   -- auctions.
-  A.txBid bob offer1 40_000_000
-  A.txBid bob offer2 60_000_000
+  void $ A.txBid bob offer1 40_000_000
+  void $ A.txBid bob offer2 60_000_000
   -- The UTxO at the first auction that represents the current state:
   [(theLastBidOref, theLastBidOutput)] <-
-    filteredUtxos $
-      isScriptOutputFrom A.auctionValidator
-        >=> isOutputWithValueSuchThat (`Pl.geq` A.threadToken offer1)
+    runUtxoSearch $
+      utxosAtSearch (Pl.validatorAddress A.auctionValidator)
+        `filterWithPred` ((`Pl.geq` A.threadToken offer1) . outputValue)
   -- Eve now bids on the second auction. Among other things this ensures that
   -- there's an output containing 40_000_000 Lovelace to Bob on the
   -- transaction. This means that, if she simultaneously bids on the first
   -- auction, she can fool the validator of the first auction, which expects an
   -- output of at least 20_000_000 Lovelace to go to Bob. She can keep this
   -- money to herself, effectively stealing Bob's bid on the first auction.
-  A.txBid eve offer2 70_000_000
-    `withTweak` ( do
-                    overTweak txSkelValidityRangeL (`Pl.intersection` Pl.to (t1 - 1))
-                    addInputTweak theLastBidOref $
-                      TxSkelRedeemerForScript
-                        (A.Bid $ A.BidderInfo 50_000_000 (walletPKHash eve))
-                    addOutputTweak $
-                      paysScript
-                        A.auctionValidator
-                        (A.Bidding (walletPKHash alice) t1 (A.BidderInfo 50_000_000 (walletPKHash eve)))
-                        ( outputValue theLastBidOutput
-                            <> Pl.negate (Ada.lovelaceValueOf 40_000_000) -- subtract Bob's bid
-                            <> Ada.lovelaceValueOf 50_000_000 -- add Eve's bid
-                        )
-                    addOutputTweak $
-                      paysPK
-                        (walletPKHash eve)
-                        (Ada.lovelaceValueOf 50_000_000)
-                )
+  void $
+    A.txBid eve offer2 70_000_000
+      `withTweak` ( do
+                      t1slot <- getEnclosingSlot t1 <&> (+ (-1))
+                      overTweak txSkelValidityRangeL (`Pl.intersection` Pl.to t1slot)
+                      addInputTweak theLastBidOref $
+                        TxSkelRedeemerForScript
+                          (A.Bid $ A.BidderInfo 50_000_000 (walletPKHash eve))
+                      addOutputTweak $
+                        paysScript
+                          A.auctionValidator
+                          (A.Bidding (walletPKHash alice) t1 (A.BidderInfo 50_000_000 (walletPKHash eve)))
+                          ( outputValue theLastBidOutput
+                              <> Pl.negate (Ada.lovelaceValueOf 40_000_000) -- subtract Bob's bid
+                              <> Ada.lovelaceValueOf 50_000_000 -- add Eve's bid
+                          )
+                      addOutputTweak $
+                        paysPK
+                          (walletPKHash eve)
+                          (Ada.lovelaceValueOf 50_000_000)
+                  )
   -- Both auctions are closed normally. Eve is the highest bidder on both of
   -- them.
-  awaitTime (t1 + 1)
-  A.txHammer eve offer1
-  awaitTime (t2 + 1)
+  slotT1 <- getEnclosingSlot t1
+  void $ awaitSlot slotT1
+  void $ A.txHammer eve offer1
+  slotT2 <- getEnclosingSlot t2
+  void $ awaitSlot slotT2
   A.txHammer eve offer2
   where
     alice = wallet 1
@@ -482,12 +484,13 @@ successfulAttacks =
 
 bidderAlternativeTrace :: (Alternative m, MonadBlockChain m) => m ()
 bidderAlternativeTrace = do
-  t0 <- currentTime
+  (_, t0) <- currentTime
   let deadline = t0 + 60_000
   offerOref <- A.txOffer (wallet 1) (banana 2) 30_000_000
-  A.txSetDeadline (wallet 1) offerOref deadline
-  A.txBid (wallet 2) offerOref 30_000_000 <|> A.txBid (wallet 3) offerOref 30_000_000
-  awaitTime (deadline + 1)
+  void $ A.txSetDeadline (wallet 1) offerOref deadline
+  void $ A.txBid (wallet 2) offerOref 30_000_000 <|> A.txBid (wallet 3) offerOref 30_000_000
+  deadlineSlot <- getEnclosingSlot deadline
+  void $ awaitSlot $ deadlineSlot + 1
   A.txHammer (wallet 1) offerOref
 
 bidderAlternative :: TestTree

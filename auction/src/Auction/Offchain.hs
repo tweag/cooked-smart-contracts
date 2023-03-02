@@ -17,7 +17,6 @@ import qualified Plutus.Script.Utils.Typed as Pl
 import qualified Plutus.Script.Utils.Value as Value
 import qualified Plutus.V2.Ledger.Api as Pl
 import qualified PlutusTx.Numeric as Pl
-import Test.QuickCheck.Modifiers (NonZero (..))
 
 -- | Make an offer. There are no checks with this transaction. Anyone is allowed
 -- to pay the 'auctionValidator' with something they want to sell, using the
@@ -53,7 +52,7 @@ txSetDeadline submitter offerOref deadline = do
             [ ( Pl.Versioned A.threadTokenPolicy Pl.PlutusV2,
                 SomeMintsRedeemer offerOref,
                 A.tokenNameFromTxOutRef offerOref,
-                NonZero 1
+                1
               )
             ],
         txSkelIns = Map.singleton offerOref $ TxSkelRedeemerForScript A.SetDeadline,
@@ -75,13 +74,22 @@ txBid :: MonadBlockChain m => Wallet -> Pl.TxOutRef -> Integer -> m Ledger.Carda
 txBid submitter offerOref bid = do
   let theNft = A.threadToken offerOref
   [(oref, output)] <-
-    filteredUtxosWithDatums $
-      isOutputWithValueSuchThat (`Value.geq` theNft)
-        <=< isScriptOutputFrom' A.auctionValidator
-  let ResolvedOrInlineDatum datum = output ^. outputDatumL
+    runUtxoSearch $
+      utxosAtSearch (Pl.validatorAddress A.auctionValidator)
+        `filterWithPred` ((`Value.geq` theNft) . outputValue)
+        `filterWith` resolveDatum
+        `filterWithPure` isOutputWithInlineDatumOfType @A.AuctionState
+  let datum = output ^. outputDatumL
       Just deadline = A.getBidDeadline datum
       seller = A.getSeller datum
       lotPlusPreviousBidPlusNft = outputValue output
+  -- In an ideal world, we would not have to subtract 1 millisecond from the
+  -- deadline here. As it stands at the moment, we have to do it in order to
+  -- account for a few subtle bugs/features of the implementation of plutus and
+  -- the ledger. For more explanation see here:
+  --
+  -- https://github.com/tweag/cooked-validators/issues/309
+  validityInterval <- slotRangeBefore (deadline - 1)
   validateTxSkel $
     txSkelTemplate
       { txSkelOpts = def {txOptEnsureMinAda = True},
@@ -105,7 +113,7 @@ txBid submitter offerOref bid = do
                   (A.Bidding seller deadline (A.BidderInfo bid (walletPKHash submitter)))
                   (lotPlusPreviousBidPlusNft <> Ada.lovelaceValueOf (bid - prevBid))
               ],
-        txSkelValidityRange = Pl.to (deadline - 1)
+        txSkelValidityRange = validityInterval
       }
 
 -- | Close the auction with the given 'Offer' UTxO. If there were any bids, this
@@ -116,9 +124,11 @@ txHammer :: MonadBlockChain m => Wallet -> Pl.TxOutRef -> m ()
 txHammer submitter offerOref = do
   let theNft = A.threadToken offerOref
   utxos <-
-    filteredUtxosWithDatums $
-      isScriptOutputFrom' A.auctionValidator
-        >=> isOutputWithValueSuchThat (`Value.geq` theNft)
+    runUtxoSearch $
+      utxosAtSearch (Pl.validatorAddress A.auctionValidator)
+        `filterWithPred` ((`Value.geq` theNft) . outputValue)
+        `filterWith` resolveDatum
+        `filterWithPure` isOutputWithInlineDatumOfType @A.AuctionState
   case utxos of
     [] ->
       -- There's no thread token, so the auction is still in 'Offer' state, and
@@ -139,9 +149,10 @@ txHammer submitter offerOref = do
     (oref, output) : _ -> do
       -- There is a thread token, so the auction is in 'NoBids' or 'Bidding'
       -- state, which means that the following pattern matches cannot fail:
-      let ResolvedOrInlineDatum datum = output ^. outputDatumL
+      let datum = output ^. outputDatumL
           Just deadline = A.getBidDeadline datum
           seller = A.getSeller datum
+      validityInterval <- slotRangeAfter deadline
       void $
         validateTxSkel $
           txSkelTemplate
@@ -155,7 +166,7 @@ txHammer submitter offerOref = do
                   [ ( Pl.Versioned A.threadTokenPolicy Pl.PlutusV2,
                       SomeMintsRedeemer offerOref,
                       A.tokenNameFromTxOutRef offerOref,
-                      NonZero (-1)
+                      -1
                     )
                   ],
               txSkelOuts =
@@ -168,5 +179,5 @@ txHammer submitter offerOref = do
                      in [ paysPK lastBidder lot,
                           paysPK seller (Ada.lovelaceValueOf lastBid)
                         ],
-              txSkelValidityRange = Pl.from deadline
+              txSkelValidityRange = validityInterval
             }

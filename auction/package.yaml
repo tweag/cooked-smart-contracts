@@ -25,6 +25,7 @@ library:
   source-dirs: src
   ghc-options:
     -Wall
+    -Werror
 
 tests:
   spec:
@@ -35,3 +36,4 @@ tests:
     ghc-options:
       -threaded
       -Wall
+      -Werror

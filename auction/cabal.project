@@ -5,11 +5,9 @@ package cardano-crypto-praos
 
 source-repository-package
   type: git
-  location: https://github.com/tweag/plutus-libs
-  tag: eb736d1ce40fe1c463a67bbdc18c870ba4178117
-  subdir:
-    cooked-validators
-  --sha256: 0mf254vv4nsghz7hay77yn34gdsh3bjw908j4bl75f5zmvc2bc1z
+  location: https://github.com/tweag/cooked-validators
+  tag: v2.0.0
+  --sha256: 0bfsay2rh6gn8ksm2dqz3ckqlprrrqp4bpab5iv8ms69wi2wbrhz
 
 source-repository-package
   type: git

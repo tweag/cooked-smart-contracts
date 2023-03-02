@@ -11,6 +11,8 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
+{-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-specialise #-}
 
 -- These language extensions are just what Split.hs uses
@@ -211,14 +213,14 @@ instance Cooked.PrettyCooked AuctionState where
       "-"
       [ "seller:" <+> Cooked.prettyCookedOpt opts seller,
         "minimum bid:" <+> Cooked.prettyCookedOpt opts (Ada.lovelaceValueOf minBid),
-        "deadline" <+> PP.pretty deadline
+        "deadline" <+> Cooked.prettyCookedOpt opts deadline
       ]
   prettyCookedOpt opts (Bidding seller deadline (BidderInfo lastBid lastBidder)) =
     Cooked.prettyItemize
       "Bidding"
       "-"
       [ "seller:" <+> Cooked.prettyCookedOpt opts seller,
-        "deadline" <+> PP.pretty deadline,
+        "deadline" <+> Cooked.prettyCookedOpt opts deadline,
         "previous bidder:" <+> Cooked.prettyCookedOpt opts lastBidder,
         "previous bid:" <+> Cooked.prettyCookedOpt opts (Ada.lovelaceValueOf lastBid)
       ]
@@ -267,12 +269,12 @@ PlutusTx.unstableMakeIsData ''Action
 mkPolicy :: Pl.TxOutRef -> Pl.ScriptContext -> Bool
 mkPolicy offerOref ctx
   | amnt == 1 =
-    traceIfFalse
-      "Offer UTxO not consumed"
-      (any (\i -> Pl.txInInfoOutRef i == offerOref) $ Pl.txInfoInputs txi)
+      traceIfFalse
+        "Offer UTxO not consumed"
+        (any (\i -> Pl.txInInfoOutRef i == offerOref) $ Pl.txInfoInputs txi)
   -- no further checks here since 'validSetDeadline' checks the remaining conditions
   | amnt == -1 =
-    True -- no further checks here; 'validHammer' checks everything
+      True -- no further checks here; 'validHammer' checks everything
   | otherwise = trace "not minting or burning the right amount" False
   where
     txi = Pl.scriptContextTxInfo ctx
@@ -415,6 +417,11 @@ validBid datum bid bidder ctx =
       checkDeadlineAndSignature deadline =
         traceIfFalse
           "Bidding past the deadline is not permitted"
+          -- This line is sometimes wrong by one millisecond, but it's not our fault. See
+          --
+          -- https://github.com/tweag/cooked-validators/issues/309
+          --
+          -- for context.
           (Pl.to deadline `Interval.contains` Pl.txInfoValidRange txi)
           && traceIfFalse "Bid transaction not signed by bidder" (txi `Pl.txSignedBy` bidder)
       checkLocked seller deadline v =
