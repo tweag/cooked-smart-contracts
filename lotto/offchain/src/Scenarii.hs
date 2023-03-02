@@ -155,7 +155,27 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
             Cooked.txSkelIns,
             Cooked.txSkelSigners = [alice]
           }
-  void $ Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
+  (lottoRef, lotto) <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
+  Just datum <- Data.datumOfTxOut lottoRef
+  let potAda =
+        Map.lookup
+          LedgerV2.adaSymbol
+          (LedgerV2.getValue $ view Cooked.outputValueL lotto)
+          >>= Map.lookup LedgerV2.adaToken & fromMaybe 0
+      payments =
+        Lib.payGamblers
+          Lib.scoreDiffZeros
+          potAda
+          (view Data.margin datum)
+          secret
+          (Map.toList $ view Data.players datum)
+  let skeleton2 = Cooked.txSkelTemplate
+          { Cooked.txSkelIns = HMap.singleton lottoRef $ Data.resolve secret,
+            Cooked.txSkelOuts = [Cooked.paysPK pk (Ada.lovelaceValueOf v) | (pk, v) <- payments],
+            Cooked.txSkelMints = Cooked.txSkelMintsFromList [Lib.burnSeal Lotto.script seal],
+            Cooked.txSkelSigners = [Lotto.organiser]
+          }
+  void $ Lib.validateAndGetOuts skeleton2
 
 -- | Alice tries to sign the initialisation transaction (which mints the
 -- seal) on her own. This is forbidden.
