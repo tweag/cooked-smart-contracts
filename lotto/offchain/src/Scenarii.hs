@@ -130,6 +130,11 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
     Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
   let txSkelIns = HMap.singleton authenticatedLottoRef Data.play
   inDatum <- fromJust <$> Data.datumOfTxOut authenticatedLottoRef
+  let outDatum = Data.createMalformed $
+                              Data.addPlayer
+                                  alice
+                                  (Lib.hashSecret "FIXME" (Just salt))
+                                  inDatum
   let skeleton = Cooked.txSkelTemplate
           { -- The transaction is valid up to the deadline
             Cooked.txSkelValidityRange = LedgerV2.to $ view Data.deadline inDatum - 1,
@@ -143,12 +148,7 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
                       (Lib.mkTypedValidator Lotto.script)
                       Nothing
                       (view Cooked.outputValueL authenticatedLotto <> amount)
-                      (Cooked.TxSkelOutDatum
-                          (Data.createMalformed $
-                              Data.addPlayer
-                                  alice
-                                  (Lib.hashSecret "FIXME" (Just salt))
-                                  inDatum))
+                      (Cooked.TxSkelOutDatum outDatum)
                       (Nothing @(Pl.Versioned Pl.Script))
                   )
               ],
@@ -156,7 +156,6 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
             Cooked.txSkelSigners = [alice]
           }
   (lottoRef, lotto) <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
-  Just datum <- Data.datumOfTxOut lottoRef
   let potAda =
         Map.lookup
           LedgerV2.adaSymbol
@@ -166,9 +165,9 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
         Lib.payGamblers
           Lib.scoreDiffZeros
           potAda
-          (view Data.margin datum)
+          (view Data.mmargin outDatum)
           secret
-          (Map.toList $ view Data.players datum)
+          (map (fmap (\_ -> "FIXME")) $ Map.toList $ view Data.mplayers outDatum)
   let skeleton2 = Cooked.txSkelTemplate
           { Cooked.txSkelIns = HMap.singleton lottoRef $ Data.resolve secret,
             Cooked.txSkelOuts = [Cooked.paysPK pk (Ada.lovelaceValueOf v) | (pk, v) <- payments],
