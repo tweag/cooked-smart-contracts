@@ -102,8 +102,8 @@ alicePlaysAloneWithMalformedGuess ::
   BuiltinByteString ->
   -- | Secret
   BuiltinByteString ->
-  -- | Amount she bids (defaults to 10 Ada)
-  Maybe LedgerV2.Value ->
+  -- | Amount she bids
+  LedgerV2.Value ->
   m ()
 alicePlaysAloneWithMalformedGuess setup salt secret amount = do
   let hashedSecret = Lib.hashSecret secret (Just salt)
@@ -115,14 +115,14 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
         [alice]
   (authenticatedLottoRef, authenticatedLotto, seal) <-
     Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
-  play <-
-    Lotto.play
+  skeleton <-
+    Lotto.splay
       authenticatedLottoRef
-      seal
       (view Cooked.outputValueL authenticatedLotto)
       (Lib.hashSecret guess (Just salt))
       alice
       (amount // Lib.ada 10)
+  play <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
   void $ Lotto.resolve secret play seal
 
 -- | Alice tries to sign the initialisation transaction (which mints the
