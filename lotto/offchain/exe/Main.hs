@@ -23,6 +23,8 @@ tests =
         Scenarii.playFoul def "salt" "secret" "guess" Nothing,
       testCase "Alice plays alone" . Testing.testSucceeds def $
         Scenarii.alicePlaysAlone def "salt" "secret" "guess" (Just $ Lib.ada 11),
+      testCase "Alice plays alone with malformed guess" . Testing.testSucceeds def $
+        Scenarii.alicePlaysAloneWithMalformedGuess def "salt" "secret" (Just $ Lib.ada 11),
       testCase "Administration must sign seal mint" . testOnchainFails $
         Scenarii.aliceTriesToMint def,
       testCase "Administration must sign seal mint (other manner)" . testOnchainFails $

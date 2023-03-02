@@ -92,6 +92,39 @@ alicePlaysAlone setup salt secret guess amount = do
       (amount // Lib.ada 10)
   void $ Lotto.resolve secret play seal
 
+-- | A simple play where the administrator opens the lotto and Alice plays once
+-- on it, except her guess is malformed, in the sense that it does not
+-- (de)serialises to a 'BuiltinByteString'.
+alicePlaysAloneWithMalformedGuess ::
+  Cooked.MonadModalBlockChain m =>
+  Lotto.Setup ->
+  -- | Salt
+  BuiltinByteString ->
+  -- | Secret
+  BuiltinByteString ->
+  -- | Amount she bids (defaults to 10 Ada)
+  Maybe LedgerV2.Value ->
+  m ()
+alicePlaysAloneWithMalformedGuess setup salt secret amount = do
+  let hashedSecret = Lib.hashSecret secret (Just salt)
+  (initLottoRef, initLotto) <-
+    Lotto.open setup hashedSecret salt
+      -- Alice signs
+      `Cooked.withTweak` Cooked.setTweak
+        Cooked.txSkelSignersL
+        [alice]
+  (authenticatedLottoRef, authenticatedLotto, seal) <-
+    Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
+  play <-
+    Lotto.play
+      authenticatedLottoRef
+      seal
+      (view Cooked.outputValueL authenticatedLotto)
+      (Lib.hashSecret guess (Just salt))
+      alice
+      (amount // Lib.ada 10)
+  void $ Lotto.resolve secret play seal
+
 -- | Alice tries to sign the initialisation transaction (which mints the
 -- seal) on her own. This is forbidden.
 aliceTriesToMint ::
