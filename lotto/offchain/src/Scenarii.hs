@@ -156,7 +156,8 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
             Cooked.txSkelSigners = [alice]
           }
   play <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
-  void $ Lotto.resolve secret play seal
+  skeleton2 <- Lotto.sresolve secret play seal
+  void $ Lib.validateAndGetOuts skeleton2
 
 -- | Alice tries to sign the initialisation transaction (which mints the
 -- seal) on her own. This is forbidden.
