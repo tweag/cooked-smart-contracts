@@ -11,19 +11,18 @@ module Data
     mintSeal,
     burnSeal,
     LottoDatum,
-    LottoDatumMalformed,
     secretHash,
     secretSalt,
     deadline,
     bidAmount,
     players,
-    mplayers,
     margin,
-    mmargin,
     Lotto,
     datumOfTxOut,
     initLottoDatum,
     addPlayer,
+    addPlayerMaybeMalformed,
+    addPlayerMalformed,
     mkRedeemer,
     initialise,
     play,
@@ -31,7 +30,6 @@ module Data
     rinitialise,
     rplay,
     rresolve,
-    createMalformed
   )
 where
 
@@ -117,53 +115,6 @@ instance Tx.Eq LottoDatum where
 PlutusTx.makeIsDataIndexed ''LottoDatum [('LottoDatum, 0)]
 PlutusTx.makeLift ''LottoDatum
 
-data LottoDatumMalformed = LottoDatumMalformed
-  { _msecretHash :: BuiltinByteString,
-    _msecretSalt :: BuiltinByteString,
-    _mdeadline :: POSIXTime,
-    _mbidAmount :: Value,
-    _mplayers :: Map PubKeyHash (),
-    _mmargin :: Tx.Rational
-  }
-  deriving (Show, Eq)
-
-makeLenses ''LottoDatumMalformed
-
-instance Cooked.PrettyCooked LottoDatumMalformed where
-  prettyCookedOpt _ dat =
-    braces $
-      align
-        ( vsep
-            [ "secret (hash):" <+> "0x" <> prettyByteString (view msecretHash dat),
-              "salt:" <+> pretty (view msecretSalt dat),
-              "deadline:" <+> pretty (view mdeadline dat),
-              "bidAmount:" <+> pretty (view mbidAmount dat),
-              "margin:" <+> prettyRat (view mmargin dat),
-              "players:" <+> pretty (view mplayers dat)
-            ]
-        )
-    where
-      prettyRat r =
-        pretty (Tx.numerator r) <+> "/" <+> pretty (Tx.denominator r)
-      -- Print a sequence of words
-      prettyByteString = B.foldr (mappend . PP.viaShow) mempty . Tx.fromBuiltin
-
-instance Tx.Eq LottoDatumMalformed where
-  (==) = (==)
-
-PlutusTx.makeIsDataIndexed ''LottoDatumMalformed [('LottoDatumMalformed, 0)]
-PlutusTx.makeLift ''LottoDatumMalformed
-
-createMalformed :: Data.LottoDatum -> LottoDatumMalformed
-createMalformed datum = LottoDatumMalformed {
-    _msecretHash = _secretHash datum,
-    _msecretSalt = _secretSalt datum,
-    _mdeadline = _deadline datum,
-    _mbidAmount = _bidAmount datum,
-    _mplayers = Map.mapWithKey (\_ _ -> ()) (_players datum),
-    _mmargin = _margin datum
-  }
-
 -- | Extract and type the datum of a 'LedgerV2.TxOut' as a Lotto datum
 datumOfTxOut :: Cooked.MonadBlockChainWithoutValidation m => LedgerV2.TxOutRef -> m (Maybe LottoDatum)
 datumOfTxOut = Cooked.typedDatumFromTxOutRef
@@ -200,12 +151,21 @@ initLottoDatum _secretHash _secretSalt _deadline _bidAmount _margin =
 -- so that the tail of the new players list is the same as the old one.
 -- tail (view players (addPlayer p b d)) == view players
 addPlayer :: Cooked.Wallet -> BuiltinByteString -> LottoDatum -> LottoDatum
-addPlayer w bid = over players (mapAppend pk (MM.WellFormed bid))
+addPlayer w bid = addPlayerMaybeMalformed w (MM.wellFormed bid)
+
+-- | Generic version of 'addPlayer' that can add a bid that is either
+-- well-formed or malformed.
+addPlayerMaybeMalformed :: Cooked.Wallet -> MM.MaybeMalformed BuiltinByteString -> LottoDatum -> LottoDatum
+addPlayerMaybeMalformed w bid = over players (mapAppend pk bid)
   where
     pk = Cooked.walletPKHash w
     mapAppend :: k -> v -> Map k v -> Map k v
     mapAppend key val m =
       Map.fromList $ (key, val) : Map.toList m
+
+-- | Same as 'addPlayer' but with a malformed guess.
+addPlayerMalformed :: PlutusTx.ToData a => Cooked.Wallet -> a -> LottoDatum -> LottoDatum
+addPlayerMalformed w bid = addPlayerMaybeMalformed w (MM.malformed bid)
 
 -- * Redeemer
 

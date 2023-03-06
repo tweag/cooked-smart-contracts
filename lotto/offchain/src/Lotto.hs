@@ -11,6 +11,7 @@ module Lotto
     mintSeal,
     splay,
     play,
+    playMaybeMalformed,
     resolve,
     sresolve,
     spost,
@@ -180,7 +181,7 @@ splay ::
   -- | Propagated value
   LedgerV2.Value ->
   -- | The guess
-  BuiltinByteString ->
+  MM.MaybeMalformed BuiltinByteString ->
   -- | Who will receive the money, and also signer of the transaction.
   Cooked.Wallet ->
   -- | Value gambled.
@@ -200,12 +201,33 @@ splay lottoRef value secret forWho gambled = do
         Cooked.txSkelOuts =
           [ Cooked.paysScript
               (Lib.mkTypedValidator script)
-              (Data.addPlayer forWho secret inDatum)
+              (Data.addPlayerMaybeMalformed forWho secret inDatum)
               (value <> gambled)
           ],
         Cooked.txSkelIns,
         Cooked.txSkelSigners = [forWho]
       }
+
+-- | Take part in the lotto as a gambler. The transaction validity range always
+-- stops just before the deadline. Also propagates the value of the input
+-- lotto.
+playMaybeMalformed ::
+  Cooked.MonadBlockChain m =>
+  -- | The UTxO resulting from the previous lotto transaction
+  LedgerV2.TxOutRef ->
+  -- | The name of the seal authenticated the lotto.
+  LedgerV2.TokenName ->
+  LedgerV2.Value ->
+  -- | The secret gambled, maybe malformed
+  MM.MaybeMalformed BuiltinByteString ->
+  -- | In the name of who (this may not be the transaction signatory)
+  Cooked.Wallet ->
+  -- | The value gambled
+  LedgerV2.Value ->
+  m (LedgerV2.TxOutRef, LedgerV2.TxOut)
+playMaybeMalformed lottoRef sealName value secret forWho gambled = do
+  skeleton <- splay lottoRef value secret forWho gambled
+  Lib.validateAndGetUniqueLottoOutWithSeal script skeleton sealName
 
 -- | Take part in the lotto as a gambler. The transaction validity range always
 -- stops just before the deadline. Also propagates the value of the input
@@ -224,9 +246,8 @@ play ::
   -- | The value gambled
   LedgerV2.Value ->
   m (LedgerV2.TxOutRef, LedgerV2.TxOut)
-play lottoRef sealName value secret forWho gambled = do
-  skeleton <- splay lottoRef value secret forWho gambled
-  Lib.validateAndGetUniqueLottoOutWithSeal script skeleton sealName
+play lottoRef sealName value secret forWho gambled =
+  playMaybeMalformed lottoRef sealName value (MM.wellFormed secret) forWho gambled
 
 sresolve ::
   Cooked.MonadBlockChainWithoutValidation m =>
