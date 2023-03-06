@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 -- | Define sequences of transactions.
 module Scenarii where
 
