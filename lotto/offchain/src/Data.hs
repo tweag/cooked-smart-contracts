@@ -56,6 +56,7 @@ import qualified PlutusTx.Prelude as Tx
 import qualified PlutusTx.Ratio as Tx
 import Prettyprinter (align, braces, pretty, vsep, (<+>))
 import qualified Prettyprinter as PP
+import qualified MaybeMalformed as MM
 import Prelude
 
 -- | Redeemer of the seal minting policy
