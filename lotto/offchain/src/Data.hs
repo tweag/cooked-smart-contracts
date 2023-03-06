@@ -11,6 +11,7 @@ module Data
     mintSeal,
     burnSeal,
     LottoDatum,
+    LottoDatumMalformed,
     secretHash,
     secretSalt,
     deadline,

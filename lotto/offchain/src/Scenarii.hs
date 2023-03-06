@@ -117,7 +117,7 @@ alicePlaysAloneWithMalformedGuess ::
   BuiltinByteString ->
   -- | Amount she bids
   LedgerV2.Value ->
-  m ()
+  m (Pl.TxOutRef, Pl.TxOut, Pl.TokenName, Data.LottoDatumMalformed)
 alicePlaysAloneWithMalformedGuess setup salt secret amount = do
   let hashedSecret = Lib.hashSecret secret (Just salt)
   (initLottoRef, initLotto) <-
@@ -156,6 +156,21 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
             Cooked.txSkelSigners = [alice]
           }
   (lottoRef, lotto) <- Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script skeleton seal
+  return (lottoRef, lotto, seal, outDatum)
+
+-- | Same as 'alicePlaysAloneWithMalformedGuess' but also tries to resolve.
+alicePlaysAloneWithMalformedGuessAndTriesToResolve ::
+  Cooked.MonadModalBlockChain m =>
+  Lotto.Setup ->
+  -- | Salt
+  BuiltinByteString ->
+  -- | Secret
+  BuiltinByteString ->
+  -- | Amount she bids
+  LedgerV2.Value ->
+  m ()
+alicePlaysAloneWithMalformedGuessAndTriesToResolve setup salt secret amount = do
+  (lottoRef, lotto, seal, outDatum) <- alicePlaysAloneWithMalformedGuess setup salt secret amount
   let potAda =
         Map.lookup
           LedgerV2.adaSymbol
@@ -168,13 +183,13 @@ alicePlaysAloneWithMalformedGuess setup salt secret amount = do
           (view Data.mmargin outDatum)
           secret
           (map (fmap (\_ -> "FIXME")) $ Map.toList $ view Data.mplayers outDatum)
-  let skeleton2 = Cooked.txSkelTemplate
+  let skeleton = Cooked.txSkelTemplate
           { Cooked.txSkelIns = HMap.singleton lottoRef $ Data.resolve secret,
             Cooked.txSkelOuts = [Cooked.paysPK pk (Ada.lovelaceValueOf v) | (pk, v) <- payments],
             Cooked.txSkelMints = Cooked.txSkelMintsFromList [Lib.burnSeal Lotto.script seal],
             Cooked.txSkelSigners = [Lotto.organiser]
           }
-  void $ Lib.validateAndGetOuts skeleton2
+  void $ Lib.validateAndGetOuts skeleton
 
 -- | Alice tries to sign the initialisation transaction (which mints the
 -- seal) on her own. This is forbidden.
