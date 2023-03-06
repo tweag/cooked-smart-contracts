@@ -11,7 +11,7 @@ import qualified Data
 import Data.Default (def)
 import Data.Functor ((<&>))
 import qualified Data.Map as HMap
-import Data.Maybe (fromMaybe, fromJust)
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified MaybeMalformed as MM
 import qualified Lib
@@ -22,17 +22,9 @@ import qualified Plutus.V2.Ledger.Api as LedgerV2
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Prelude (BuiltinByteString)
 import qualified PlutusTx.Prelude as Tx
-
-import qualified Ledger.Scripts as Pl hiding (validatorHash)
-import qualified Ledger.Slot as Pl
-import qualified Ledger.Typed.Scripts as Pl
-import qualified Plutus.Script.Utils.Ada as Pl
 import qualified Plutus.Script.Utils.Value as Pl hiding (adaSymbol, adaToken)
-import qualified Plutus.V1.Ledger.Interval as Pl
 import qualified Plutus.V2.Ledger.Api as Pl hiding (TxOut, adaSymbol, adaToken)
 import qualified Plutus.V2.Ledger.Tx as Pl
-import qualified PlutusTx.Prelude as Pl
-
 import Prelude
 
 infixr 9 //
