@@ -135,38 +135,20 @@ alicePlaysAloneMalformed ::
 alicePlaysAloneMalformed setup salt secret amount =
   alicePlaysAloneMaybeMalformed setup salt secret (MM.malformed ()) amount
 
--- -- | Same as 'alicePlaysAloneWithMalformedGuess' but also tries to resolve.
--- alicePlaysAloneWithMalformedGuessAndTriesToResolve ::
---   Cooked.MonadModalBlockChain m =>
---   Lotto.Setup ->
---   -- | Salt
---   BuiltinByteString ->
---   -- | Secret
---   BuiltinByteString ->
---   -- | Amount she bids
---   LedgerV2.Value ->
---   m ()
--- alicePlaysAloneWithMalformedGuessAndTriesToResolve setup salt secret amount = do
---   (lottoRef, lotto, seal, outDatum) <- alicePlaysAloneWithMalformedGuess setup salt secret amount
---   let potAda =
---         Map.lookup
---           LedgerV2.adaSymbol
---           (LedgerV2.getValue $ view Cooked.outputValueL lotto)
---           >>= Map.lookup LedgerV2.adaToken & fromMaybe 0
---       payments =
---         Lib.payGamblers
---           Lib.scoreDiffZeros
---           potAda
---           (view Data.mmargin outDatum)
---           secret
---           (map (fmap (\_ -> "FIXME")) $ Map.toList $ view Data.mplayers outDatum)
---   let skeleton = Cooked.txSkelTemplate
---           { Cooked.txSkelIns = HMap.singleton lottoRef $ Data.resolve secret,
---             Cooked.txSkelOuts = [Cooked.paysPK pk (Ada.lovelaceValueOf v) | (pk, v) <- payments],
---             Cooked.txSkelMints = Cooked.txSkelMintsFromList [Lib.burnSeal Lotto.script seal],
---             Cooked.txSkelSigners = [Lotto.organiser]
---           }
---   void $ Lib.validateAndGetOuts skeleton
+-- | Same as 'alicePlaysAloneWithMalformedGuess' but also tries to resolve.
+alicePlaysAloneMalformedWithResolution ::
+  Cooked.MonadModalBlockChain m =>
+  Lotto.Setup ->
+  -- | Salt
+  BuiltinByteString ->
+  -- | Secret
+  BuiltinByteString ->
+  -- | Amount she bids
+  Maybe LedgerV2.Value ->
+  m ()
+alicePlaysAloneMalformedWithResolution setup salt secret amount = do
+  (play, seal) <- alicePlaysAloneMalformed setup salt secret amount
+  void $ Lotto.resolve secret play seal
 
 -- | Alice tries to sign the initialisation transaction (which mints the
 -- seal) on her own. This is forbidden.
