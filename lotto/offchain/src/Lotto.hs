@@ -249,6 +249,12 @@ play ::
 play lottoRef sealName value secret forWho gambled =
   playMaybeMalformed lottoRef sealName value (MM.wellFormed secret) forWho gambled
 
+-- | Build a transaction skeleton for a resolution.
+--
+-- NOTE: If all the guesses are well-formed, then this skeleton makes sense and
+-- the corresponding transaction should be accepted by the validator. However,
+-- if at least one guess is malformed, then the payments make little sense,
+-- which is not a big deal considering the validator will crash on its input.
 sresolve ::
   Cooked.MonadBlockChainWithoutValidation m =>
   BuiltinByteString ->
@@ -268,7 +274,7 @@ sresolve secret (lottoRef, lotto) sealName = do
           potAda
           (view Data.margin datum)
           secret
-          (map (fmap MM.fromWellFormed) $ Map.toList $ view Data.players datum)
+          (map (fmap guessFromMaybeMalformed) $ Map.toList $ view Data.players datum)
   return $
     Cooked.txSkelTemplate
       { Cooked.txSkelIns = HMap.singleton lottoRef $ Data.resolve secret,
@@ -276,6 +282,10 @@ sresolve secret (lottoRef, lotto) sealName = do
         Cooked.txSkelMints = Cooked.txSkelMintsFromList [Lib.burnSeal script sealName],
         Cooked.txSkelSigners = [organiser]
       }
+  where
+    guessFromMaybeMalformed :: MM.MaybeMalformed BuiltinByteString -> BuiltinByteString
+    guessFromMaybeMalformed (MM.WellFormed bs) = bs
+    guessFromMaybeMalformed (MM.Malformed _) = "MALFORMED"
 
 resolve ::
   Cooked.MonadBlockChain m =>
