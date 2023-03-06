@@ -26,8 +26,8 @@ import qualified Data.Map as HMap
 import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Time.Clock as Time
 import qualified Ledger
-import qualified MaybeMalformed as MM
 import qualified Lib
+import qualified MaybeMalformed as MM
 import Optics (set, view, (%), (&), (<&>))
 import qualified Plutus.Script.Utils.Ada as Ada
 import qualified Plutus.Script.Utils.Typed as TScripts

@@ -36,6 +36,7 @@ where
 import Cooked (TxSkelRedeemer)
 import qualified Cooked
 import qualified Data.ByteString as B
+import qualified MaybeMalformed as MM
 import Optics (makeLenses, over, view)
 import Plutus.Script.Utils.Typed (DatumType, RedeemerType, ValidatorTypes)
 import Plutus.V2.Ledger.Api
@@ -54,7 +55,6 @@ import qualified PlutusTx.Prelude as Tx
 import qualified PlutusTx.Ratio as Tx
 import Prettyprinter (align, braces, pretty, vsep, (<+>))
 import qualified Prettyprinter as PP
-import qualified MaybeMalformed as MM
 import Prelude
 
 -- | Redeemer of the seal minting policy

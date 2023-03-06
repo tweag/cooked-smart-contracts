@@ -13,18 +13,18 @@ import Data.Functor ((<&>))
 import qualified Data.Map as HMap
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
-import qualified MaybeMalformed as MM
 import qualified Lib
 import qualified Lotto
+import qualified MaybeMalformed as MM
 import Optics (set, view, (&), (^.))
 import qualified Plutus.Script.Utils.Ada as Ada
+import qualified Plutus.Script.Utils.Value as Pl hiding (adaSymbol, adaToken)
 import qualified Plutus.V2.Ledger.Api as LedgerV2
+import qualified Plutus.V2.Ledger.Api as Pl hiding (TxOut, adaSymbol, adaToken)
+import qualified Plutus.V2.Ledger.Tx as Pl
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Prelude (BuiltinByteString)
 import qualified PlutusTx.Prelude as Tx
-import qualified Plutus.Script.Utils.Value as Pl hiding (adaSymbol, adaToken)
-import qualified Plutus.V2.Ledger.Api as Pl hiding (TxOut, adaSymbol, adaToken)
-import qualified Plutus.V2.Ledger.Tx as Pl
 import Prelude
 
 infixr 9 //

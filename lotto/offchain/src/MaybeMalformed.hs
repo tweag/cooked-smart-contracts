@@ -1,15 +1,14 @@
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | A module to easily inject malformed pieces of data in well-typed haskell
 -- code. A 'MaybeMalformed' piece of data can be either well-formed, in which
 -- case it carries a value of the expected type, or malformed, in which case it
 -- carries an arbitrary Plutus builtin data.
-
 module MaybeMalformed
-  ( MaybeMalformed(..),
+  ( MaybeMalformed (..),
     fromWellFormed,
     fromMalformed,
     wellFormed,
@@ -18,8 +17,8 @@ module MaybeMalformed
 where
 
 import Data.Maybe (fromJust)
-import Prettyprinter (Pretty, pretty, (<+>))
 import qualified PlutusTx as Pl
+import Prettyprinter (Pretty, pretty, (<+>))
 import Prelude
 
 data MaybeMalformed a = WellFormed a | Malformed Pl.BuiltinData deriving (Show, Eq)
