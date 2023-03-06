@@ -85,7 +85,7 @@ data LottoDatum = LottoDatum
     _secretSalt :: BuiltinByteString,
     _deadline :: POSIXTime,
     _bidAmount :: Value,
-    _players :: Map PubKeyHash BuiltinByteString,
+    _players :: Map PubKeyHash (MM.MaybeMalformed BuiltinByteString),
     _margin :: Tx.Rational
   }
   deriving (Show, Eq)
@@ -200,7 +200,7 @@ initLottoDatum _secretHash _secretSalt _deadline _bidAmount _margin =
 -- so that the tail of the new players list is the same as the old one.
 -- tail (view players (addPlayer p b d)) == view players
 addPlayer :: Cooked.Wallet -> BuiltinByteString -> LottoDatum -> LottoDatum
-addPlayer w bid = over players (mapAppend pk bid)
+addPlayer w bid = over players (mapAppend pk (MM.WellFormed bid))
   where
     pk = Cooked.walletPKHash w
     mapAppend :: k -> v -> Map k v -> Map k v

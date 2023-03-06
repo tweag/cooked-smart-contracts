@@ -13,6 +13,7 @@ import Data.Functor ((<&>))
 import qualified Data.Map as HMap
 import Data.Maybe (fromMaybe, fromJust)
 import qualified Data.Set as Set
+import qualified MaybeMalformed as MM
 import qualified Lib
 import qualified Lotto
 import Optics (set, view, (&), (^.))
@@ -377,14 +378,14 @@ doubleSatisfactionResolution salt secret = do
           (Lib.countAda $ lotto1 ^. Cooked.outputValueL)
           (datum1 ^. Data.margin)
           secret
-          (Map.toList $ datum1 ^. Data.players)
+          (map (fmap MM.fromWellFormed) $ Map.toList $ datum1 ^. Data.players)
       payments2 =
         Lib.payGamblers
           Lib.scoreDiffZeros
           (Lib.countAda $ lotto2 ^. Cooked.outputValueL)
           (datum2 ^. Data.margin)
           secret
-          (Map.toList $ datum2 ^. Data.players)
+          (map (fmap MM.fromWellFormed) $ Map.toList $ datum2 ^. Data.players)
       -- The values Alice receive from both payments. We unstructure them
       -- for easier manipulation.
       vFrom1 = snd . head $ payments1

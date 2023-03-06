@@ -25,6 +25,7 @@ import qualified Data.Map as HMap
 import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Time.Clock as Time
 import qualified Ledger
+import qualified MaybeMalformed as MM
 import qualified Lib
 import Optics (set, view, (%), (&), (<&>))
 import qualified Plutus.Script.Utils.Ada as Ada
@@ -246,7 +247,7 @@ sresolve secret (lottoRef, lotto) sealName = do
           potAda
           (view Data.margin datum)
           secret
-          (Map.toList $ view Data.players datum)
+          (map (fmap MM.fromWellFormed) $ Map.toList $ view Data.players datum)
   return $
     Cooked.txSkelTemplate
       { Cooked.txSkelIns = HMap.singleton lottoRef $ Data.resolve secret,
