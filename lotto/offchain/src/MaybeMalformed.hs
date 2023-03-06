@@ -8,7 +8,6 @@
 module MaybeMalformed where
 
 import Data.Maybe (fromJust)
-import qualified Cooked
 import Prettyprinter (Pretty, pretty, (<+>))
 import qualified PlutusTx as Pl
 import Prelude
@@ -41,3 +40,9 @@ fromWellFormed _ = error "fromWellFormed"
 fromMalformed :: MaybeMalformed a -> Pl.BuiltinData
 fromMalformed (Malformed y) = y
 fromMalformed _ = error "fromMalformed"
+
+wellFormed :: a -> MaybeMalformed a
+wellFormed = WellFormed
+
+malformed :: Pl.ToData b => b -> MaybeMalformed a
+malformed = Malformed . Pl.toBuiltinData
