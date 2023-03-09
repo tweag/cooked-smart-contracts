@@ -195,7 +195,7 @@ doubleSatisfaction setup salt secret = do
   let validator = Lib.mkTypedValidator Lotto.script
   -- Compute parameters.
   let hashedSecret = Lib.hashSecret secret (Just salt)
-  time <- Cooked.currentTime
+  (_, time) <- Cooked.currentTime
   let deadline = time + TimeSlot.nominalDiffTimeToPOSIXTime (Lotto.duration setup)
   -- The administrator (Wallet 1) opens two lottos with the exact same datums.
   -- This is a big restriction for the attack; but still it goes through \o
@@ -238,7 +238,7 @@ doubleSatisfaction setup salt secret = do
                 -- potentially be a lot; basically one of the pots minus 10 ADA.
                 Cooked.paysPK (Cooked.walletPKHash alice) restValue
               ],
-            Cooked.txSkelValidityRange = validityRange,
+            --Cooked.txSkelValidityRange = validityRange,
             Cooked.txSkelSigners = [alice]
           }
   -- And... score!

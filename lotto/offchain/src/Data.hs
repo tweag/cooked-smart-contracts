@@ -122,7 +122,8 @@ initLottoDatum ::
   BuiltinByteString ->
   -- | The salt used to hash the secret
   BuiltinByteString ->
-  -- | Gamblers must play before this deadline
+  -- | The duration gamblers are allowed to play, starting from the end of the
+  -- current slot (gamblers are also allowed to play during the current slot).
   POSIXTime ->
   -- | The minimum value required to bid.
   Value ->
