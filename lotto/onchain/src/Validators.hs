@@ -294,7 +294,7 @@ playValidator =
         outPlayers <- pletC $ Lib.plistOfMap #$ pfromData $ pfield @"players" # outLottoDatum
         pguardC
           ( "Validator (play): the gambler's list is empty, "
-              <> "it should contain one public key hash/bid pair."
+              <> "it should contain at least one public key hash/bid pair."
           )
           $ pnot #$ pnull # outPlayers
         datumPlayers <- pletC $ Lib.plistOfMap #$ pfromData $ pfield @"players" # datum
