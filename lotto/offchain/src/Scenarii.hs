@@ -217,9 +217,9 @@ doubleSatisfaction setup salt secret = do
   -- Create output datums, validity range and values. Apart from the values,
   -- this is just playing normally.
   let outDatum = Data.addPlayer alice "word1" initDatum
-      validityRange = LedgerV2.to $ view Data.deadline initDatum - 1
       joinValue = authedValue1 Tx.\/ authedValue2
       restValue = (authedValue1 Tx.+ authedValue2) Tx.- joinValue
+  validityRange <- Cooked.slotRangeBefore $ view Data.deadline initDatum - 1
   -- create the transaction skeleton.
   let skeleton =
         Cooked.txSkelTemplate
@@ -238,7 +238,7 @@ doubleSatisfaction setup salt secret = do
                 -- potentially be a lot; basically one of the pots minus 10 ADA.
                 Cooked.paysPK (Cooked.walletPKHash alice) restValue
               ],
-            --Cooked.txSkelValidityRange = validityRange,
+            Cooked.txSkelValidityRange = validityRange,
             Cooked.txSkelSigners = [alice]
           }
   -- And... score!
