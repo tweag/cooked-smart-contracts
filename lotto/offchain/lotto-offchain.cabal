@@ -13,6 +13,7 @@ library
       Data
       Lib
       Lotto
+      MaybeMalformed
       Scenarii
   other-modules:
       Paths_lotto_offchain

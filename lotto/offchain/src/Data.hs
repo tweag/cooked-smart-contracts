@@ -21,6 +21,8 @@ module Data
     datumOfTxOut,
     initLottoDatum,
     addPlayer,
+    addPlayerMaybeMalformed,
+    addPlayerMalformed,
     mkRedeemer,
     initialise,
     play,
@@ -34,6 +36,7 @@ where
 import Cooked (TxSkelRedeemer)
 import qualified Cooked
 import qualified Data.ByteString as B
+import qualified MaybeMalformed as MM
 import Optics (makeLenses, over, view)
 import Plutus.Script.Utils.Typed (DatumType, RedeemerType, ValidatorTypes)
 import Plutus.V2.Ledger.Api
@@ -80,7 +83,7 @@ data LottoDatum = LottoDatum
     _secretSalt :: BuiltinByteString,
     _deadline :: POSIXTime,
     _bidAmount :: Value,
-    _players :: Map PubKeyHash BuiltinByteString,
+    _players :: Map PubKeyHash (MM.MaybeMalformed BuiltinByteString),
     _margin :: Tx.Rational
   }
   deriving (Show, Eq)
@@ -149,12 +152,21 @@ initLottoDatum _secretHash _secretSalt _deadline _bidAmount _margin =
 -- so that the tail of the new players list is the same as the old one.
 -- tail (view players (addPlayer p b d)) == view players
 addPlayer :: Cooked.Wallet -> BuiltinByteString -> LottoDatum -> LottoDatum
-addPlayer w bid = over players (mapAppend pk bid)
+addPlayer w bid = addPlayerMaybeMalformed w (MM.wellFormed bid)
+
+-- | Generic version of 'addPlayer' that can add a bid that is either
+-- well-formed or malformed.
+addPlayerMaybeMalformed :: Cooked.Wallet -> MM.MaybeMalformed BuiltinByteString -> LottoDatum -> LottoDatum
+addPlayerMaybeMalformed w bid = over players (mapAppend pk bid)
   where
     pk = Cooked.walletPKHash w
     mapAppend :: k -> v -> Map k v -> Map k v
     mapAppend key val m =
       Map.fromList $ (key, val) : Map.toList m
+
+-- | Same as 'addPlayer' but with a malformed guess.
+addPlayerMalformed :: PlutusTx.ToData a => Cooked.Wallet -> a -> LottoDatum -> LottoDatum
+addPlayerMalformed w bid = addPlayerMaybeMalformed w (MM.malformed bid)
 
 -- * Redeemer
 

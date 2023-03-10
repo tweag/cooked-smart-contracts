@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE BangPatterns #-}
 
 -- | The main lotto validator.
 module Validators (main) where
@@ -294,7 +295,7 @@ playValidator =
         outPlayers <- pletC $ Lib.plistOfMap #$ pfromData $ pfield @"players" # outLottoDatum
         pguardC
           ( "Validator (play): the gambler's list is empty, "
-              <> "it should contain one public key hash/bid pair."
+              <> "it should contain at least one public key hash/bid pair."
           )
           $ pnot #$ pnull # outPlayers
         datumPlayers <- pletC $ Lib.plistOfMap #$ pfromData $ pfield @"players" # datum
@@ -303,6 +304,14 @@ playValidator =
             -- Otherwise, the tail of the out players list is the same as the
             -- previous players list
             #|| (ptail # outPlayers #== datumPlayers)
+        pguardC "Validator (play): Key hash and bid should be bytestrings." $
+          (let keyHashAndBid = phead # outPlayers
+               keyHash  :: Term s PPubKeyHash = pfromData $ pfstBuiltin # keyHashAndBid
+               bid      :: Term s PBidWord    = pfromData $ psndBuiltin # keyHashAndBid
+               -- REVIEW: We use `ptrace` to force a computation with those
+               -- values. Ideally, we would want a way to force evaluation
+               -- without even tracing anything.
+            in ptrace (pshow keyHash <> pshow bid) $ pconstant True)
         -- Check there's an NFT in the inputs
         pguardC "No seal in the input lotto" $
           let hasSeal input =

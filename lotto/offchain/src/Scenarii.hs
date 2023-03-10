@@ -8,14 +8,19 @@ import qualified Cooked
 import qualified Data
 import Data.Default (def)
 import Data.Functor ((<&>))
+import Data.Bifunctor (second)
 import qualified Data.Map as HMap
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 import qualified Lib
 import qualified Lotto
+import qualified MaybeMalformed as MM
 import Optics (set, view, (&), (^.))
 import qualified Plutus.Script.Utils.Ada as Ada
+import qualified Plutus.Script.Utils.Value as Pl hiding (adaSymbol, adaToken)
 import qualified Plutus.V2.Ledger.Api as LedgerV2
+import qualified Plutus.V2.Ledger.Api as Pl hiding (TxOut, adaSymbol, adaToken)
+import qualified Plutus.V2.Ledger.Tx as Pl
 import qualified PlutusTx.AssocMap as Map
 import PlutusTx.Prelude (BuiltinByteString)
 import qualified PlutusTx.Prelude as Tx
@@ -59,20 +64,20 @@ playFoul setup salt secret guess gambled = do
       (gambled // Lib.ada 10)
 
 -- | A simple play where the administrator opens the lotto and Alice plays once
--- on it.
-alicePlaysAlone ::
+-- on it. Alice might play with a malformed guess.
+alicePlaysAloneMaybeMalformed ::
   Cooked.MonadModalBlockChain m =>
   Lotto.Setup ->
   -- | Salt
   BuiltinByteString ->
   -- | Secret
   BuiltinByteString ->
-  -- | Guess
-  BuiltinByteString ->
+  -- | Guess, maybe malformed
+  MM.MaybeMalformed BuiltinByteString ->
   -- | Amount she bids (defaults to 10 Ada)
   Maybe LedgerV2.Value ->
-  m ()
-alicePlaysAlone setup salt secret guess amount = do
+  m ((Pl.TxOutRef, Pl.TxOut), Pl.TokenName)
+alicePlaysAloneMaybeMalformed setup salt secret guess amount = do
   let hashedSecret = Lib.hashSecret secret (Just salt)
   (initLottoRef, initLotto) <-
     Lotto.open setup hashedSecret salt
@@ -83,13 +88,57 @@ alicePlaysAlone setup salt secret guess amount = do
   (authenticatedLottoRef, authenticatedLotto, seal) <-
     Lotto.mintSeal initLottoRef (view Cooked.outputValueL initLotto)
   play <-
-    Lotto.play
+    Lotto.playMaybeMalformed
       authenticatedLottoRef
       seal
       (view Cooked.outputValueL authenticatedLotto)
-      (Lib.hashSecret guess (Just salt))
+      (fmap (\x -> Lib.hashSecret x (Just salt)) guess)
       alice
       (amount // Lib.ada 10)
+  return (play, seal)
+
+alicePlaysAlone ::
+  Cooked.MonadModalBlockChain m =>
+  Lotto.Setup ->
+  -- | Salt
+  BuiltinByteString ->
+  -- | Secret
+  BuiltinByteString ->
+  -- | Guess, well-formed
+  BuiltinByteString ->
+  -- | Amount she bids (defaults to 10 Ada)
+  Maybe LedgerV2.Value ->
+  m ()
+alicePlaysAlone setup salt secret guess amount = do
+  (play, seal) <- alicePlaysAloneMaybeMalformed setup salt secret (MM.wellFormed guess) amount
+  void $ Lotto.resolve secret play seal
+
+alicePlaysAloneMalformed ::
+  Cooked.MonadModalBlockChain m =>
+  Lotto.Setup ->
+  -- | Salt
+  BuiltinByteString ->
+  -- | Secret
+  BuiltinByteString ->
+  -- | Amount she bids
+  Maybe LedgerV2.Value ->
+  m ((Pl.TxOutRef, Pl.TxOut), Pl.TokenName)
+alicePlaysAloneMalformed setup salt secret amount =
+  alicePlaysAloneMaybeMalformed setup salt secret (MM.malformed ()) amount
+
+-- | Same as 'alicePlaysAloneWithMalformedGuess' but also tries to resolve.
+alicePlaysAloneMalformedWithResolution ::
+  Cooked.MonadModalBlockChain m =>
+  Lotto.Setup ->
+  -- | Salt
+  BuiltinByteString ->
+  -- | Secret
+  BuiltinByteString ->
+  -- | Amount she bids
+  Maybe LedgerV2.Value ->
+  m ()
+alicePlaysAloneMalformedWithResolution setup salt secret amount = do
+  (play, seal) <- alicePlaysAloneMalformed setup salt secret amount
   void $ Lotto.resolve secret play seal
 
 -- | Alice tries to sign the initialisation transaction (which mints the
@@ -278,14 +327,14 @@ doubleSatisfactionResolution salt secret = do
           (Lib.countAda $ lotto1 ^. Cooked.outputValueL)
           (datum1 ^. Data.margin)
           secret
-          (Map.toList $ datum1 ^. Data.players)
+          (map (second MM.fromWellFormed) $ Map.toList $ datum1 ^. Data.players)
       payments2 =
         Lib.payGamblers
           Lib.scoreDiffZeros
           (Lib.countAda $ lotto2 ^. Cooked.outputValueL)
           (datum2 ^. Data.margin)
           secret
-          (Map.toList $ datum2 ^. Data.players)
+          (map (second MM.fromWellFormed) $ Map.toList $ datum2 ^. Data.players)
       -- The values Alice receive from both payments. We unstructure them
       -- for easier manipulation.
       vFrom1 = snd . head $ payments1
@@ -353,7 +402,7 @@ alicePlaysWithRF = do
       (authSkel & setLottoRefScript initLottoRef (Data.rinitialise))
       seal
   (lottoPlayedRef, lottoPlayed) <-
-    Lotto.splay authLottoRef (authLotto ^. Cooked.outputValueL) "guess" alice (Lotto.bidAmount def)
+    Lotto.splay authLottoRef (authLotto ^. Cooked.outputValueL) (MM.wellFormed "guess") alice (Lotto.bidAmount def)
       <&> setLottoRefScript authLottoRef Data.rplay
         >>= flip
           (Lib.validateAndGetUniqueLottoOutWithSeal Lotto.script)
