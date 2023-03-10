@@ -40,7 +40,6 @@ import qualified Cooked
 import qualified Data
 import qualified Data.Bifunctor as Bifun
 import Data.Coerce (coerce)
-import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromMaybe, isJust)
 import qualified Ledger.Typed.Scripts as TScripts
 import Optics (Traversal', traversed, view, (%))
@@ -62,7 +61,6 @@ import qualified PlutusTx.Ratio as Tx.Rat
 import Ply ((#))
 import qualified Ply
 import System.IO.Unsafe (unsafePerformIO)
-import Test.Tasty.QuickCheck (NonZero (NonZero))
 import Type.Reflection (Typeable)
 import Prelude
 
@@ -193,13 +191,13 @@ burnSeal ::
   ( TScripts.Versioned MintingPolicy,
     Cooked.MintsRedeemer,
     TokenName,
-    NonZero Integer
+    Integer
   )
 burnSeal scripts seal =
   ( TScripts.Versioned (Lib.mkMintingPolicy scripts) TScripts.PlutusV2,
     Data.burnSeal seal,
     seal,
-    NonZero (-1)
+    -1
   )
 
 mintSeal ::
@@ -209,13 +207,13 @@ mintSeal ::
   ( TScripts.Versioned MintingPolicy,
     Cooked.MintsRedeemer,
     TokenName,
-    NonZero Integer
+    Integer
   )
 mintSeal scripts seal outRef =
   ( TScripts.Versioned (Lib.mkMintingPolicy scripts) TScripts.PlutusV2,
     Data.mintSeal outRef,
     seal,
-    NonZero 1
+    1
   )
 
 -- | Return an amount of Ada.
@@ -279,7 +277,7 @@ validateAndGetOuts txskel =
   Cooked.utxosFromCardanoTx <$> Cooked.validateTxSkel txskel
 
 -- | Returns true if a certain output belong to a given validator
-isValidatorOutput :: Cooked.IsOnchainOutput o => TScripts.TypedValidator a -> o -> Bool
+isValidatorOutput :: Cooked.IsTxInfoOutput o => TScripts.TypedValidator a -> o -> Bool
 isValidatorOutput v = isJust . Cooked.isScriptOutputFrom v
 
 -- | Validates a transaction and returns the (unique) output that belongs

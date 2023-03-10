@@ -195,7 +195,7 @@ doubleSatisfaction setup salt secret = do
   let validator = Lib.mkTypedValidator Lotto.script
   -- Compute parameters.
   let hashedSecret = Lib.hashSecret secret (Just salt)
-  time <- Cooked.currentTime
+  (_, time) <- Cooked.currentTime
   let deadline = time + TimeSlot.nominalDiffTimeToPOSIXTime (Lotto.duration setup)
   -- The administrator (Wallet 1) opens two lottos with the exact same datums.
   -- This is a big restriction for the attack; but still it goes through \o
@@ -217,9 +217,9 @@ doubleSatisfaction setup salt secret = do
   -- Create output datums, validity range and values. Apart from the values,
   -- this is just playing normally.
   let outDatum = Data.addPlayer alice "word1" initDatum
-      validityRange = LedgerV2.to $ view Data.deadline initDatum - 1
       joinValue = authedValue1 Tx.\/ authedValue2
       restValue = (authedValue1 Tx.+ authedValue2) Tx.- joinValue
+  validityRange <- Cooked.slotRangeBefore $ view Data.deadline initDatum - 1
   -- create the transaction skeleton.
   let skeleton =
         Cooked.txSkelTemplate

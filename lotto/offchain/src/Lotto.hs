@@ -86,7 +86,7 @@ sopen ::
   BuiltinByteString ->
   m Cooked.TxSkel
 sopen secretHash secretSalt = do
-  time <- Cooked.currentTime
+  (_, time) <- Cooked.currentTime
   let someDatum =
         Data.initLottoDatum
           secretHash
@@ -116,7 +116,7 @@ open ::
   BuiltinByteString ->
   m (LedgerV2.TxOutRef, LedgerV2.TxOut)
 open Setup {duration, bidAmount, margin} secretHash secretSalt = do
-  time <- Cooked.currentTime
+  (_, time) <- Cooked.currentTime
   skeleton <-
     sopen secretHash secretSalt
       <&> set (Lib.txSkelTypedDatumT % Data.bidAmount) bidAmount
@@ -173,7 +173,7 @@ mintSeal outRef value = do
 -- contains the seal and the value gambled, nothing more.
 -- Typically one has to propagate the value of the previous lotto input his or herself.
 splay ::
-  Cooked.MonadBlockChainWithoutValidation m =>
+  Cooked.MonadBlockChain m =>
   -- | Reference to an output {locked by a lotto}
   LedgerV2.TxOutRef ->
   -- | Propagated value
@@ -188,14 +188,13 @@ splay ::
 splay lottoRef value secret forWho gambled = do
   let txSkelIns = HMap.singleton lottoRef Data.play
   inDatum <- fromJust <$> Data.datumOfTxOut lottoRef
+  slotRangeToDeadline <- Cooked.slotRangeBefore $ view Data.deadline inDatum - 1
+  -- That @- 1@ has no real reason to be there, but without that, validation
+  -- fails. See https://github.com/tweag/cooked-validators/issues/309.
   return $
     Cooked.txSkelTemplate
       { -- The transaction is valid up to the deadline
-        Cooked.txSkelValidityRange = LedgerV2.to $ view Data.deadline inDatum - 1,
-        -- That @- 1@ has no real reason to be there, but without that,
-        -- validation fails. The interval displayed by the onchain code
-        -- is incremented by 1 for some reason (maybe because of
-        -- boundaries inclusiveness)
+        Cooked.txSkelValidityRange = slotRangeToDeadline,
         Cooked.txSkelOuts =
           [ Cooked.paysScript
               (Lib.mkTypedValidator script)
