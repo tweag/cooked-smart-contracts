@@ -1,24 +1,22 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Split.OffChain where
 
-import Control.Monad
-import Cooked.MockChain
-import Cooked.Tx.Constraints
-import qualified Ledger as Pl
-import qualified Ledger.Ada as Pl
-import qualified Ledger.Typed.Scripts as Pl
-import Playground.Contract hiding (ownPaymentPubKeyHash)
-import qualified Plutus.Contract as C
+import qualified Cooked
+import Data.Default
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+import qualified Plutus.Script.Utils.Ada as Script
+import qualified PlutusLedgerApi.V3 as Api
+import qualified Prettyprinter
 import Split
-import qualified Wallet.Emulator.Wallet as C
+
+instance Cooked.PrettyCooked SplitDatum where
+  prettyCooked = Prettyprinter.viaShow
 
 -- * Transaction Skeleton Generators
 
@@ -26,71 +24,50 @@ import qualified Wallet.Emulator.Wallet as C
 -- we receive the split contract as parameter because we use this same function
 -- in the @tests/SplitSpec.hs@ and @tests/SplitUPLCSpec.hs@. The later loads
 -- the split contract as a raw untyped PlutusCore contract.
-txLock :: MonadBlockChain m => Pl.TypedValidator Split -> SplitDatum -> m ()
-txLock script datum =
-  void $
-    validateTxConstrLbl
-      (TxLock datum)
-      [ paysScript
-          script
-          datum
-          (Pl.lovelaceValueOf (Split.amount datum))
-      ]
+txLock :: (Cooked.MonadBlockChain m) => Cooked.Wallet -> SplitDatum -> m Api.TxOutRef
+txLock signer datum@SplitDatum {amount} = do
+  splitTxOutRef : _ <-
+    Cooked.validateTxSkel' $
+      Cooked.txSkelTemplate
+        { Cooked.txSkelOuts = [Cooked.paysScript splitValidator datum (Script.lovelaceValueOf amount)],
+          Cooked.txSkelOpts = def {Cooked.txOptEnsureMinAda = True},
+          Cooked.txSkelSigners = [signer],
+          Cooked.txSkelLabel = Set.singleton (Cooked.TxLabel (TxLock datum))
+        }
+  return splitTxOutRef
 
 -- | Label for 'txLock' skeleton, making it immediately recognizable
 -- when printing traces.
-newtype TxLock = TxLock SplitDatum deriving (Show, Eq)
+newtype TxLock = TxLock SplitDatum deriving (Show, Eq, Ord)
 
 -- | Whether a script output concerns a public key hash
-isARecipient :: Pl.PubKeyHash -> SplitDatum -> a -> Bool
-isARecipient pkh datum _ = pkh `elem` [Split.recipient1 datum, Split.recipient2 datum]
+isARecipient :: Api.PubKeyHash -> SplitDatum -> Bool
+isARecipient pkh SplitDatum {recipient1, recipient2} = pkh `elem` [recipient1, recipient2]
 
 -- | Unlocks the first 'SplitDatum' where our wallet is a recipient of.
-txUnlock :: (MonadBlockChain m) => Pl.TypedValidator Split -> m ()
-txUnlock script = do
-  pkh <- ownPaymentPubKeyHash
-  (output, Split.SplitDatum r1 r2 amount) : _ <-
-    scriptUtxosSuchThat script (isARecipient pkh)
-  let half = div amount 2
-  let share1 = half
-  let share2 = amount - half
-  void $
-    validateTxConstrLbl
-      TxUnlock
-      ( [SpendsScript script () output]
-          :=>: [ paysPK r1 (Pl.lovelaceValueOf share1),
-                 paysPK r2 (Pl.lovelaceValueOf share2)
-               ]
-      )
+txUnlock ::
+  (Cooked.MonadBlockChain m) =>
+  Api.TxOutRef ->
+  Cooked.Wallet ->
+  m (Api.TxOutRef, Api.TxOutRef)
+txUnlock splitTxOutRef signer = do
+  Just SplitDatum {recipient1, recipient2, amount} <-
+    Cooked.typedDatumFromTxOutRef @SplitDatum splitTxOutRef
+  let share1 = div amount 2
+      share2 = amount - share1
+  share1TxOutRef : share2TxOutRef : _ <-
+    Cooked.validateTxSkel' $
+      Cooked.txSkelTemplate
+        { Cooked.txSkelIns = Map.singleton splitTxOutRef (Cooked.TxSkelRedeemerForScript ()),
+          Cooked.txSkelOuts =
+            [ Cooked.paysPK recipient1 (Script.lovelaceValueOf share1),
+              Cooked.paysPK recipient2 (Script.lovelaceValueOf share2)
+            ],
+          Cooked.txSkelSigners = [signer],
+          Cooked.txSkelOpts = def {Cooked.txOptEnsureMinAda = True},
+          Cooked.txSkelLabel = Set.singleton (Cooked.TxLabel TxUnlock)
+        }
+  return (share1TxOutRef, share2TxOutRef)
 
 -- | Label for 'txUnlock' skeleton
-data TxUnlock = TxUnlock deriving (Show, Eq)
-
--- * Contract monad endpoints and schema
-
-data LockArgs = LockArgs
-  { recipient1Wallet :: C.Wallet,
-    recipient2Wallet :: C.Wallet,
-    totalAda :: Pl.Ada
-  }
-  deriving stock (Show, Generic)
-  deriving anyclass (ToJSON, FromJSON, ToSchema)
-
-type SplitSchema = C.Endpoint "lock" LockArgs C..\/ C.Endpoint "unlock" ()
-
-mkSchemaDefinitions ''SplitSchema
-
-mkSplitData :: LockArgs -> SplitDatum
-mkSplitData LockArgs {recipient1Wallet, recipient2Wallet, totalAda} =
-  let convert :: C.Wallet -> Pl.PubKeyHash
-      convert = Pl.unPaymentPubKeyHash . C.mockWalletPaymentPubKeyHash
-   in SplitDatum
-        { recipient1 = convert recipient1Wallet,
-          recipient2 = convert recipient2Wallet,
-          amount = fromIntegral totalAda
-        }
-
-endpoints :: (C.AsContractError e) => C.Promise w SplitSchema e ()
-endpoints =
-  C.endpoint @"lock" (txLock splitValidator . mkSplitData)
-    `C.select` C.endpoint @"unlock" (const $ txUnlock splitValidator)
+data TxUnlock = TxUnlock deriving (Show, Eq, Ord)

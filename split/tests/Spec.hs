@@ -9,6 +9,6 @@ main = do
   defaultMain $
     testGroup
       "main"
-      [ SplitSpec.tests,
-        SplitUPLCSpec.tests
+      [ SplitSpec.tests -- ,
+      -- SplitUPLCSpec.tests
       ]

@@ -1,151 +1,156 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE NumericUnderscores #-}
 
 module SplitSpec where
 
-import Control.Monad
-import Cooked.MockChain
-import Cooked.Tx.Constraints
-import Data.Maybe (fromMaybe)
-import qualified Ledger.Ada as Pl
-import qualified Split
-import Split.OffChain
-import Test.Tasty
-import Test.Tasty.ExpectedFailure
-import Test.Tasty.HUnit
+import qualified Cooked
+import Data.Default
+import Optics.Core
+import qualified Plutus.Script.Utils.Ada as Script
+import qualified PlutusLedgerApi.V3 as Api
+import qualified PlutusTx.Prelude as PlutusTx
+import Split (SplitDatum (SplitDatum), splitValidator)
+import Split.OffChain (txLock, txUnlock)
+import qualified Test.Tasty as Tasty
+import qualified Test.Tasty.ExpectedFailure as Tasty
+import qualified Test.Tasty.HUnit as Tasty
 
--- | A more general version of 'txUnlock' above. In fact,
--- @txUnlock' Nothing Nothing Nothing == txUnlock@, but we keep
--- two functions for pedagogical purposes.
-txUnlock' ::
-  MonadMockChain m =>
-  -- | Optionally override first recipient
-  Maybe Wallet ->
-  -- | Optionally override second recipient
-  Maybe Wallet ->
-  -- | Optionally override the amount given to recipient
-  Maybe (Integer -> Integer) ->
-  -- | Issuer
-  Wallet ->
-  m ()
-txUnlock' mRecipient1 mRecipient2 mAmountChanger issuer = do
-  (output, Split.SplitDatum r1 r2 amount) : _ <-
-    scriptUtxosSuchThat Split.splitValidator (isARecipient $ walletPKHash issuer)
-  let half = div amount 2
-      share1 = fromMaybe id mAmountChanger half
-      share2 = fromMaybe id mAmountChanger (amount - half)
-      constraints =
-        [SpendsScript Split.splitValidator () output]
-          :=>: [ paysPK (maybe r1 walletPKHash mRecipient1) (Pl.lovelaceValueOf share1),
-                 paysPK (maybe r2 walletPKHash mRecipient2) (Pl.lovelaceValueOf share2)
-               ]
-      remainder = amount - share1 - share2
-      remainderConstraint =
-        paysScript
-          Split.splitValidator
-          (Split.SplitDatum r1 r2 remainder)
-          (Pl.lovelaceValueOf remainder)
-  void $
-    validateTxConstrLbl
-      (TxUnlock' mRecipient1 mRecipient2 (fmap ($ 100) mAmountChanger))
-      (constraints <> toConstraints [remainderConstraint | remainder > 0])
-      `as` issuer
+-- * Setup
 
-data TxUnlock' = TxUnlock' (Maybe Wallet) (Maybe Wallet) (Maybe Integer) deriving (Show, Eq)
+alice, bob, carol, dave, eve :: Cooked.Wallet
+alice = Cooked.wallet 1
+bob = Cooked.wallet 2
+carol = Cooked.wallet 3
+dave = Cooked.wallet 4
+eve = Cooked.wallet 5
 
--- | Template for an unlock attack.
--- Conditions for the attack: 2 split utxos in the ledger, with the same locked
--- amount, and sharing the same second recipient.
--- Attack: the second recipient is paid only one of their shares, the remainder
--- goes to the issuer of the transaction.
-txUnlockAttack :: MonadMockChain m => Wallet -> m ()
-txUnlockAttack issuer = do
-  (output1, Split.SplitDatum r11 r12 amount1)
-    : (output2, Split.SplitDatum r21 r22 amount2)
-    : _ <-
-    scriptUtxosSuchThat Split.splitValidator (\_ _ -> True)
-  unless (r12 == r22) (fail "second recipiend must match")
-  let half1 = Pl.lovelaceValueOf (amount1 `div` 2)
-      half2 = Pl.lovelaceValueOf (amount2 `div` 2)
-      constraints =
-        [ SpendsScript Split.splitValidator () output1,
-          SpendsScript Split.splitValidator () output2
-        ]
-          :=>: [ paysPK r11 half1,
-                 paysPK r12 (if amount1 > amount2 then half1 else half2),
-                 paysPK r21 half2
-               ]
-  void $ validateTxConstrLbl TxUnlockAttack constraints `as` issuer
+alicePkh, bobPkh, carolPkh, davePkh, evePkh :: Api.PubKeyHash
+alicePkh = Cooked.walletPKHash alice
+bobPkh = Cooked.walletPKHash bob
+carolPkh = Cooked.walletPKHash carol
+davePkh = Cooked.walletPKHash dave
+evePkh = Cooked.walletPKHash eve
 
-data TxUnlockAttack = TxUnlockAttack deriving (Show, Eq)
+initDist :: Cooked.InitialDistribution
+initDist =
+  Cooked.distributionFromList $
+    [ (alice, [Script.lovelaceValueOf 100_000_000]),
+      (bob, [Script.lovelaceValueOf 100_000_000]),
+      (carol, [Script.lovelaceValueOf 100_000_000]),
+      (dave, [Script.lovelaceValueOf 100_000_000]),
+      (eve, [Script.lovelaceValueOf 100_000_000])
+    ]
 
--- | Transaction that does not pay enough to the recipients
-txUnlockNotEnough :: MonadMockChain m => Wallet -> m ()
-txUnlockNotEnough = txUnlock' Nothing Nothing (Just (`div` 2))
-
--- | Transaction that gives everything to the first recipient
-txUnlockTooMuch :: MonadMockChain m => Wallet -> m ()
-txUnlockTooMuch = txUnlock' Nothing Nothing (Just (* 2))
-
--- | Transaction that pays everything to the issuer
-txUnlockGreedy :: MonadMockChain m => Wallet -> m ()
-txUnlockGreedy w = txUnlock' (Just w) (Just w) Nothing w
-
--- | Parameters to share 400 among wallets 2 and 3
-lockParams :: Split.SplitDatum
-lockParams =
-  Split.SplitDatum
-    { Split.recipient1 = walletPKHash (wallet 2),
-      Split.recipient2 = walletPKHash (wallet 3),
-      Split.amount = 20_000_000
+pcOpts :: Cooked.PrettyCookedOpts
+pcOpts =
+  def
+    { Cooked.pcOptHashes =
+        def
+          { Cooked.pcOptHashNames =
+              Cooked.hashNamesFromList
+                [ (alicePkh, "Alice"),
+                  (bobPkh, "Bob"),
+                  (carolPkh, "Carol"),
+                  (davePkh, "Dave"),
+                  (evePkh, "Eve")
+                ]
+                <> Cooked.hashNamesFromList [(splitValidator, "Split")]
+                <> Cooked.defaultHashNames
+          }
     }
 
--- | Parameters to share 400 among wallets 3 and 4
-lockParams2 :: Split.SplitDatum
-lockParams2 =
-  Split.SplitDatum
-    { Split.recipient1 = walletPKHash (wallet 4),
-      Split.recipient2 = walletPKHash (wallet 3),
-      Split.amount = 40_000_000
-    }
+-- * Tests cases
 
-usageExample :: Assertion
-usageExample = testSucceeds $ do
-  txLock Split.splitValidator lockParams `as` wallet 1
-  txUnlock Split.splitValidator `as` wallet 2
+testSuccessfulUsage :: Tasty.TestTree
+testSuccessfulUsage =
+  Tasty.testCase
+    "Simple example succeeds"
+    ( Cooked.testSucceedsFrom' pcOpts predicate initDist $ do
+        splitTxOutRef <- txLock alice (SplitDatum bobPkh carolPkh 40_000_001)
+        (bobTxOutRef, carolTxOutRef) <- txUnlock splitTxOutRef dave
+        Just valueBob <- Cooked.valueFromTxOutRef bobTxOutRef
+        Just valueCarol <- Cooked.valueFromTxOutRef carolTxOutRef
+        return (valueBob, valueCarol)
+    )
+  where
+    predicate (valueBob, valueCarol) _ =
+      Cooked.testBool $
+        valueBob == Script.lovelaceValueOf 20_000_000
+          && valueCarol == Script.lovelaceValueOf 20_000_001
 
-ex :: (MonadMockChain m) => m ()
-ex = do
-  txLock Split.splitValidator lockParams `as` wallet 1
-  txLock Split.splitValidator lockParams2 `as` wallet 1
-  txUnlock Split.splitValidator `as` wallet 2
+testOneGetsAll :: Tasty.TestTree
+testOneGetsAll =
+  Tasty.testCase
+    "Cannot give everything to one recipient"
+    ( Cooked.testFailsFrom pcOpts (Cooked.isCekEvaluationFailure def) initDist $ do
+        splitTxOutRef <- txLock alice (SplitDatum bobPkh carolPkh 40_000_000)
+        _ <- Cooked.withTweak (txUnlock splitTxOutRef dave) $ do
+          _ <-
+            Cooked.removeOutputTweak
+              ( \(Cooked.Pays output) ->
+                  Cooked.outputAddress output == Cooked.walletAddress carol
+              )
+          Cooked.overTweak
+            (Cooked.txSkelOutsL % _head % Cooked.txSkelOutValueL)
+            (<> Script.lovelaceValueOf 20_000_000)
+        return ()
+    )
 
-tests :: TestTree
+testPartialUnlocks :: Tasty.TestTree
+testPartialUnlocks =
+  Tasty.testCase
+    "Cannot unlock in multiple steps"
+    ( Cooked.testFailsFrom pcOpts (Cooked.isCekEvaluationFailure def) initDist $ do
+        splitTxOutRef <- txLock alice (SplitDatum bobPkh carolPkh 40_000_000)
+        let halfUnlock =
+              Cooked.withTweak (txUnlock splitTxOutRef dave) $ do
+                Cooked.overTweak
+                  (Cooked.txSkelOutsL % element 1 % Cooked.txSkelOutValueL)
+                  (<> PlutusTx.negate (Script.lovelaceValueOf 10_000_000))
+                Cooked.overTweak
+                  (Cooked.txSkelOutsL % element 2 % Cooked.txSkelOutValueL)
+                  (<> PlutusTx.negate (Script.lovelaceValueOf 10_000_000))
+        _ <- halfUnlock
+        _ <- halfUnlock
+        return ()
+    )
+
+testDoubleSatisfaction :: Tasty.TestTree
+testDoubleSatisfaction =
+  -- The Split validator is actually vulnerable to double satisfaction attacks.
+  -- This test is marked as an expected failure for illustration purposes. In
+  -- the real world, this would be an actual failure to investigate.
+  Tasty.expectFail $
+    Tasty.testCase
+      "Split is resilient to double satisfaction attack"
+      ( Cooked.testFailsFrom pcOpts (Cooked.isCekEvaluationFailure def) initDist $ do
+          splitTxOutRef1 <- txLock alice (SplitDatum bobPkh davePkh 40_000_000)
+          splitTxOutRef2 <- txLock alice (SplitDatum carolPkh davePkh 40_000_000)
+          _ <- Cooked.withTweak (txUnlock splitTxOutRef1 eve) $ do
+            -- Remove Dave's share he gets from first split
+            _ <-
+              Cooked.removeOutputTweak
+                ( \(Cooked.Pays output) ->
+                    Cooked.outputAddress output == Cooked.walletAddress dave
+                )
+            -- Spend second split
+            Cooked.addInputTweak splitTxOutRef2 (Cooked.TxSkelRedeemerForScript ())
+            -- Pay Carol and Dave as expected
+            Cooked.addOutputTweak (Cooked.paysPK carolPkh (Script.lovelaceValueOf 20_000_000))
+            Cooked.addOutputTweak (Cooked.paysPK davePkh (Script.lovelaceValueOf 20_000_000))
+            -- Eve takes the share Dave was owned in the first split
+            Cooked.addOutputTweak (Cooked.paysPK evePkh (Script.lovelaceValueOf 20_000_000))
+          return ()
+      )
+
+-- * Test suite
+
+tests :: Tasty.TestTree
 tests =
-  testGroup
+  Tasty.testGroup
     "SplitSpec"
-    [ testCase "Simple example succeeds" usageExample,
-      -- TODO: afaic this test should fail; but somehow, the previous suite marked
-      -- it as passing; hence, I'll add it as expectFail here
-      expectFail $
-        testCase "Unlocking too much" $
-          testFails $ do
-            txLock Split.splitValidator lockParams `as` wallet 1
-            txUnlockTooMuch (wallet 2),
-      testCase "Cannot unlock in small parts" $
-        testFails $ do
-          txLock Split.splitValidator lockParams `as` wallet 1
-          txUnlockNotEnough (wallet 2)
-          txUnlockNotEnough (wallet 2),
-      testCase "Forgets a recipient" $
-        testFails $ do
-          txLock Split.splitValidator lockParams `as` wallet 1
-          txUnlockGreedy (wallet 2),
-      -- we know that this implementation of split is vulnerable to this attack;
-      -- Still, I rather phrase the test as we would in practice and flag it with 'expectFail'
-      expectFail $
-        testCase "Is not vulnerable to double split attack" $
-          testFails $ do
-            txLock Split.splitValidator lockParams `as` wallet 1
-            txLock Split.splitValidator lockParams2 `as` wallet 1
-            txUnlockAttack (wallet 5)
+    [ testSuccessfulUsage,
+      testOneGetsAll,
+      testPartialUnlocks,
+      testDoubleSatisfaction
     ]

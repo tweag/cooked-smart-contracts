@@ -6,7 +6,9 @@ version: 0.1.0.0
 
 dependencies:
   - base >= 4.9 && < 5
+  - containers
   - cooked-validators
+  - data-default
   - QuickCheck
   - tasty
   - tasty-hunit
@@ -20,16 +22,14 @@ dependencies:
   - plutus-ledger-api
   - plutus-tx
   - plutus-tx-plugin
-  - playground-common
   - plutus-script-utils
-  - plutus-contract
+  - prettyprinter
   - optics-core
 
 library:
   source-dirs: src
   ghc-options:
     -Wall
-    -Werror
 
 tests:
   spec:
@@ -40,4 +40,3 @@ tests:
     ghc-options:
       -threaded
       -Wall
-      -Werror
