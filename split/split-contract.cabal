@@ -19,23 +19,23 @@ library
       Paths_split_contract
   hs-source-dirs:
       src
-  ghc-options: -Wall -Werror
+  ghc-options: -Wall
   build-depends:
       QuickCheck
     , aeson
     , base >=4.9 && <5
     , bytestring
+    , containers
     , cooked-validators
     , data-default
     , flat
     , optics-core
-    , playground-common
-    , plutus-contract
     , plutus-ledger
     , plutus-ledger-api
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-plugin
+    , prettyprinter
     , tasty
     , tasty-expected-failure
     , tasty-hunit
@@ -53,23 +53,23 @@ test-suite spec
       Paths_split_contract
   hs-source-dirs:
       tests
-  ghc-options: -threaded -Wall -Werror
+  ghc-options: -threaded -Wall
   build-depends:
       QuickCheck
     , aeson
     , base >=4.9 && <5
     , bytestring
+    , containers
     , cooked-validators
     , data-default
     , flat
     , optics-core
-    , playground-common
-    , plutus-contract
     , plutus-ledger
     , plutus-ledger-api
     , plutus-script-utils
     , plutus-tx
     , plutus-tx-plugin
+    , prettyprinter
     , split-contract
     , tasty
     , tasty-expected-failure

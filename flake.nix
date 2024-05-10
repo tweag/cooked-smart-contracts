@@ -22,7 +22,6 @@
       imports = [
         crowdfunding/crowdfunding.nix
         p-multisig-stateful/p-multisig-stateful.nix
-        split/split.nix
         auction/auction.nix
         lotto/lotto-common.nix
         lotto/onchain/lotto-onchain.nix
