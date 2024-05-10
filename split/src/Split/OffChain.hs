@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -12,11 +13,19 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Plutus.Script.Utils.Ada as Script
 import qualified PlutusLedgerApi.V3 as Api
+import Prettyprinter ((<+>))
 import qualified Prettyprinter
 import Split
 
 instance Cooked.PrettyCooked SplitDatum where
-  prettyCooked = Prettyprinter.viaShow
+  prettyCookedOpt pcOpts SplitDatum {recipient1, recipient2, amount} =
+    Cooked.prettyItemize
+      "SplitDatum"
+      "-"
+      [ "Amount:" <+> Prettyprinter.pretty amount,
+        "Recipient 1:" <+> Cooked.prettyCookedOpt pcOpts recipient1,
+        "Recipient 2:" <+> Cooked.prettyCookedOpt pcOpts recipient2
+      ]
 
 -- * Transaction Skeleton Generators
 
@@ -39,6 +48,9 @@ txLock signer datum@SplitDatum {amount} = do
 -- | Label for 'txLock' skeleton, making it immediately recognizable
 -- when printing traces.
 newtype TxLock = TxLock SplitDatum deriving (Show, Eq, Ord)
+
+instance Cooked.PrettyCooked TxLock where
+  prettyCookedOpt pcOpts (TxLock splitDatum) = "TxLock" <+> Cooked.prettyCookedOpt pcOpts splitDatum
 
 -- | Whether a script output concerns a public key hash
 isARecipient :: Api.PubKeyHash -> SplitDatum -> Bool
@@ -71,3 +83,6 @@ txUnlock splitTxOutRef signer = do
 
 -- | Label for 'txUnlock' skeleton
 data TxUnlock = TxUnlock deriving (Show, Eq, Ord)
+
+instance Cooked.PrettyCooked TxUnlock where
+  prettyCooked _ = "TxUnlock"
