@@ -4,7 +4,7 @@ packages:
 source-repository-package
   type: git
   location: https://github.com/tweag/cooked-validators
-  tag: 7c42d1f6eca3d7a8a9e51238fb872ea8107ef7e8
+  tag: a94c21a73187b9dc7744a4e6758dfb55f5aabba5
   subdir: .
   
 package cardano-crypto-praos
