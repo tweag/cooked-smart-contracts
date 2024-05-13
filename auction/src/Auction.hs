@@ -10,6 +10,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# OPTIONS_GHC -fno-ignore-interface-pragmas #-}
 {-# OPTIONS_GHC -fno-omit-interface-pragmas #-}
@@ -21,16 +22,15 @@
 module Auction where
 
 import qualified Cooked
-import qualified Plutus.Script.Utils.Ada as Ada
-import qualified Plutus.Script.Utils.Typed as Scripts
-import qualified Plutus.Script.Utils.V2.Scripts as Pl
-import qualified Plutus.Script.Utils.V2.Typed.Scripts as Scripts
-import qualified Plutus.V1.Ledger.Interval as Interval
-import qualified Plutus.V1.Ledger.Value as Value
-import qualified Plutus.V2.Ledger.Api as Pl
-import qualified Plutus.V2.Ledger.Contexts as Pl
+import qualified Plutus.Script.Utils.Ada as Script
+import qualified Plutus.Script.Utils.Scripts as Script
+import qualified Plutus.Script.Utils.Typed as Script
+import qualified Plutus.Script.Utils.V3.Typed.Scripts as Script
+import qualified Plutus.Script.Utils.Value as Script
+import qualified PlutusLedgerApi.V1.Interval as Api
+import qualified PlutusLedgerApi.V3 as Api
+import qualified PlutusLedgerApi.V3.Contexts as Api
 import qualified PlutusTx
-import qualified PlutusTx.Numeric as Pl
 import PlutusTx.Prelude
 import Prettyprinter ((<+>))
 import qualified Prettyprinter as PP
@@ -107,15 +107,15 @@ So, each of the two scripts P and V has to have the other's hash as a parameter,
 and have it known at compile time. This is patently an impossible cycle.
 
 The only generic solution that we know of is to turn any initial payment of
-freshly minted tokens to the validator into a process that involves two transactions: The first
-transaction does not involve any checks at all, does not mint any tokens that
-should be locked in the validator script, and creates "unchecked" UTxOs (Here,
-these are the UTxOs with the 'Offer' datum). The second transaction consumes
-unchecked UTxOs (with an additional redeemer, which here is 'SetDeadline'),
-mints the required tokens, and pays a checked UTxO back to the same validator,
-which contains the newly minted tokens as a proof of their soundness, and a
-datum signalling that they have been checked (here, that datum is
-'NoBids'). Since the second transaction uses a redeemer, it can make whatever
+freshly minted tokens to the validator into a process that involves two
+transactions: The first transaction does not involve any checks at all, does not
+mint any tokens that should be locked in the validator script, and creates
+"unchecked" UTxOs (Here, these are the UTxOs with the 'Offer' datum). The second
+transaction consumes unchecked UTxOs (with an additional redeemer, which here is
+'SetDeadline'), mints the required tokens, and pays a checked UTxO back to the
+same validator, which contains the newly minted tokens as a proof of their
+soundness, and a datum signalling that they have been checked (here, that datum
+is 'NoBids'). Since the second transaction uses a redeemer, it can make whatever
 checks are needed to ensure the tokens are minted correctly and paid to the
 correct script.
 
@@ -135,7 +135,7 @@ the correct tokens.
 -- computed on-chain. It is constant, and if you look at the very bottom of this
 -- file, you will find 'auctionValidator' defined with the constant currency
 -- symbol derived from the 'threadTokenPolicy'.
-newtype ValParams = ValParams Pl.CurrencySymbol
+newtype ValParams = ValParams Api.CurrencySymbol
 
 PlutusTx.makeLift ''ValParams
 PlutusTx.unstableMakeIsData ''ValParams
@@ -145,7 +145,7 @@ data BidderInfo = BidderInfo
   { -- | the last bidder's offer in Ada
     bid :: Integer,
     -- | the last bidder's address
-    bidder :: Pl.PubKeyHash
+    bidder :: Api.PubKeyHash
   }
   deriving (Haskell.Show)
 
@@ -169,21 +169,21 @@ instance Eq BidderInfo where
 data AuctionState
   = -- | state of an auction where an offer has already been made. The address
     -- is the seller's, the integer is the minimum bid in Lovelaces.
-    Offer Pl.PubKeyHash Integer
+    Offer Api.PubKeyHash Integer
   | -- | state of an auction with a given seller, minimum bid, and deadline that
     -- has not yet had any bids
-    NoBids Pl.PubKeyHash Integer Pl.POSIXTime
+    NoBids Api.PubKeyHash Integer Api.POSIXTime
   | -- | state of an auction with a given seller and deadline that has had at
     -- least one bid.
-    Bidding Pl.PubKeyHash Pl.POSIXTime BidderInfo
+    Bidding Api.PubKeyHash Api.POSIXTime BidderInfo
   deriving (Haskell.Show)
 
-getSeller :: AuctionState -> Pl.PubKeyHash
+getSeller :: AuctionState -> Api.PubKeyHash
 getSeller (Offer s _) = s
 getSeller (NoBids s _ _) = s
 getSeller (Bidding s _ _) = s
 
-getBidDeadline :: AuctionState -> Maybe Pl.POSIXTime
+getBidDeadline :: AuctionState -> Maybe Api.POSIXTime
 getBidDeadline (Offer _ _) = Nothing
 getBidDeadline (NoBids _ _ t) = Just t
 getBidDeadline (Bidding _ t _) = Just t
@@ -205,14 +205,14 @@ instance Cooked.PrettyCooked AuctionState where
       "Offer"
       "-"
       [ "seller:" <+> Cooked.prettyCookedOpt opts seller,
-        "minimum bid:" <+> Cooked.prettyCookedOpt opts (Ada.lovelaceValueOf minBid)
+        "minimum bid:" <+> Cooked.prettyCookedOpt opts (Script.lovelaceValueOf minBid)
       ]
   prettyCookedOpt opts (NoBids seller minBid deadline) =
     Cooked.prettyItemize
       "NoBids"
       "-"
       [ "seller:" <+> Cooked.prettyCookedOpt opts seller,
-        "minimum bid:" <+> Cooked.prettyCookedOpt opts (Ada.lovelaceValueOf minBid),
+        "minimum bid:" <+> Cooked.prettyCookedOpt opts (Script.lovelaceValueOf minBid),
         "deadline" <+> Cooked.prettyCookedOpt opts deadline
       ]
   prettyCookedOpt opts (Bidding seller deadline (BidderInfo lastBid lastBidder)) =
@@ -222,7 +222,7 @@ instance Cooked.PrettyCooked AuctionState where
       [ "seller:" <+> Cooked.prettyCookedOpt opts seller,
         "deadline" <+> Cooked.prettyCookedOpt opts deadline,
         "previous bidder:" <+> Cooked.prettyCookedOpt opts lastBidder,
-        "previous bid:" <+> Cooked.prettyCookedOpt opts (Ada.lovelaceValueOf lastBid)
+        "previous bid:" <+> Cooked.prettyCookedOpt opts (Script.lovelaceValueOf lastBid)
       ]
 
 -- | Actions to be taken in an auction. This will be the 'RedeemerType'.
@@ -233,7 +233,7 @@ data Action
     Bid BidderInfo
   | -- | redeemer to close the auction. The 'TxOutRef' points to the original
     --  'Offer' UTxO.
-    Hammer Pl.TxOutRef
+    Hammer Api.TxOutRef
   deriving (Haskell.Show)
 
 instance Cooked.PrettyCooked Action where
@@ -266,18 +266,18 @@ PlutusTx.unstableMakeIsData ''Action
 -- transaction is checked by 'validHammer', so that this minting policy only has
 -- to check that at exactly one token is burned.
 {-# INLINEABLE mkPolicy #-}
-mkPolicy :: Pl.TxOutRef -> Pl.ScriptContext -> Bool
+mkPolicy :: Api.TxOutRef -> Api.ScriptContext -> Bool
 mkPolicy offerOref ctx
   | amnt == 1 =
       traceIfFalse
         "Offer UTxO not consumed"
-        (any (\i -> Pl.txInInfoOutRef i == offerOref) $ Pl.txInfoInputs txi)
+        (any (\i -> Api.txInInfoOutRef i == offerOref) $ Api.txInfoInputs txi)
   -- no further checks here since 'validSetDeadline' checks the remaining conditions
   | amnt == -1 =
       True -- no further checks here; 'validHammer' checks everything
   | otherwise = trace "not minting or burning the right amount" False
   where
-    txi = Pl.scriptContextTxInfo ctx
+    txi = Api.scriptContextTxInfo ctx
 
     -- the amount of minted tokens whose token name is the hash of the
     -- 'offerOref'.
@@ -294,36 +294,36 @@ mkPolicy offerOref ctx
     amnt =
       foldr
         ( \(cs, tn, a) n ->
-            if cs == Pl.ownCurrencySymbol ctx && tn == tokenNameFromTxOutRef offerOref
+            if cs == Api.ownCurrencySymbol ctx && tn == tokenNameFromTxOutRef offerOref
               then n + a
               else n
         )
         0
-        $ Value.flattenValue (Pl.txInfoMint txi)
+        $ Script.flattenValue (Api.txInfoMint txi)
 
-threadTokenPolicy :: Scripts.MintingPolicy
+threadTokenPolicy :: Script.MintingPolicy
 threadTokenPolicy =
-  Pl.mkMintingPolicyScript
-    $$(PlutusTx.compile [||Scripts.mkUntypedMintingPolicy mkPolicy||])
+  Script.mkMintingPolicyScript
+    $$(PlutusTx.compile [||Script.mkUntypedMintingPolicy mkPolicy||])
 
 -- | Compute the thread token of the auction with the given offer UTxO.
-threadToken :: Pl.TxOutRef -> Pl.Value
-threadToken offerOref = Value.assetClassValue (threadTokenAssetClassFromOref offerOref) 1
+threadToken :: Api.TxOutRef -> Api.Value
+threadToken offerOref = Script.assetClassValue (threadTokenAssetClassFromOref offerOref) 1
 
-threadTokenAssetClassFromOref :: Pl.TxOutRef -> Value.AssetClass
+threadTokenAssetClassFromOref :: Api.TxOutRef -> Script.AssetClass
 threadTokenAssetClassFromOref offerOref =
-  Value.assetClass
+  Script.assetClass
     threadCurrencySymbol
     (tokenNameFromTxOutRef offerOref)
 
-threadCurrencySymbol :: Pl.CurrencySymbol
-threadCurrencySymbol = Pl.scriptCurrencySymbol threadTokenPolicy
+threadCurrencySymbol :: Api.CurrencySymbol
+threadCurrencySymbol = Cooked.currencySymbolFromLanguageAndMP Script.PlutusV3 threadTokenPolicy
 
 -- | Compute the token name of the thread token of an auction from its offer
 -- Utxo. This must be a 32-byte string, apparently.
 {-# INLINEABLE tokenNameFromTxOutRef #-}
-tokenNameFromTxOutRef :: Pl.TxOutRef -> Pl.TokenName
-tokenNameFromTxOutRef (Pl.TxOutRef (Pl.TxId tid) i) =
+tokenNameFromTxOutRef :: Api.TxOutRef -> Api.TokenName
+tokenNameFromTxOutRef (Api.TxOutRef (Api.TxId tid) i) =
   -- Remark, because I spent quite some time digging for this information: Why
   -- do we directly use the constructor 'TokenName' here? -- The point is that
   -- we want to use this function on-chain, and that the library function
@@ -331,7 +331,7 @@ tokenNameFromTxOutRef (Pl.TxOutRef (Pl.TxId tid) i) =
   -- strings. See this issue on plutus-apps for some background:
   --
   -- https://github.com/input-output-hk/plutus-apps/issues/498
-  Value.TokenName . takeByteString 32 . sha2_256 $ tid <> "-" <> encodeInteger i
+  Script.TokenName . takeByteString 32 . sha2_256 $ tid <> "-" <> encodeInteger i
   where
     -- we know that the numbers (indices of transaction outputs) we're working
     -- with here are non-negative.
@@ -348,27 +348,27 @@ tokenNameFromTxOutRef (Pl.TxOutRef (Pl.TxId tid) i) =
 -- original offer UTxO. This is for on-chain computations of the thread token,
 -- where the currency symbol is known as a parameter.
 {-# INLINEABLE threadTokenOnChain #-}
-threadTokenOnChain :: Pl.CurrencySymbol -> Pl.TxOutRef -> Pl.Value
-threadTokenOnChain threadCS offerOref = Value.assetClassValue (Value.AssetClass (threadCS, tokenNameFromTxOutRef offerOref)) 1
+threadTokenOnChain :: Api.CurrencySymbol -> Api.TxOutRef -> Api.Value
+threadTokenOnChain threadCS offerOref = Script.assetClassValue (Script.AssetClass (threadCS, tokenNameFromTxOutRef offerOref)) 1
 
 -- * The validator and its helpers
 
 -- | Extract an auction state from an output (if it has one)
 {-# INLINEABLE outputAuctionState #-}
-outputAuctionState :: Pl.TxInfo -> Pl.TxOut -> Maybe AuctionState
+outputAuctionState :: Api.TxInfo -> Api.TxOut -> Maybe AuctionState
 outputAuctionState txi o =
-  case Pl.txOutDatum o of
-    Pl.NoOutputDatum -> Nothing
-    Pl.OutputDatumHash h -> do
-      Pl.Datum d <- Pl.findDatum h txi
+  case Api.txOutDatum o of
+    Api.NoOutputDatum -> Nothing
+    Api.OutputDatumHash h -> do
+      Api.Datum d <- Api.findDatum h txi
       PlutusTx.fromBuiltinData d
-    Pl.OutputDatum (Pl.Datum d) -> PlutusTx.fromBuiltinData d
+    Api.OutputDatum (Api.Datum d) -> PlutusTx.fromBuiltinData d
 
 -- | Test that the value paid to the given public key address is at
 -- least the given value
 {-# INLINEABLE receivesFrom #-}
-receivesFrom :: Pl.TxInfo -> Pl.PubKeyHash -> Pl.Value -> Bool
-receivesFrom txi who what = Pl.valuePaidTo txi who `Value.geq` what
+receivesFrom :: Api.TxInfo -> Api.PubKeyHash -> Api.Value -> Bool
+receivesFrom txi who what = Api.valuePaidTo txi who `Script.geq` what
 
 -- | To set the deadline of an auction, you must
 -- * consume an UTxO with the 'Offer' datum
@@ -376,30 +376,29 @@ receivesFrom txi who what = Pl.valuePaidTo txi who `Value.geq` what
 --   add the thread token
 -- * sign the transaction as the seller
 {-# INLINEABLE validSetDeadline #-}
-validSetDeadline :: Pl.CurrencySymbol -> AuctionState -> Pl.ScriptContext -> Bool
-validSetDeadline threadCS datum ctx =
-  let txi = Pl.scriptContextTxInfo ctx
-   in case datum of
-        Offer seller minbid ->
-          let Just (Pl.TxInInfo offerOref offerOut) = Pl.findOwnInput ctx
-           in traceIfFalse
-                "SetDeadline transaction must be signed by seller"
-                (txi `Pl.txSignedBy` seller)
-                && traceIfFalse
-                  "there must be a 'NoBids' output containing the lot and the thread token"
-                  ( any
-                      ( \o ->
-                          Pl.txOutValue o
-                            `Value.geq` (threadTokenOnChain threadCS offerOref <> Pl.txOutValue offerOut)
-                            && case outputAuctionState txi o of
-                              Just (NoBids seller' minbid' _deadline) ->
-                                (seller, minbid) == (seller', minbid')
-                              _ -> False
-                      )
-                      (Pl.getContinuingOutputs ctx)
-                  )
-        NoBids {} -> trace "Cannot re-set the deadline in 'NoBids' state" False
-        Bidding {} -> trace "Cannot re-set the deadline in 'Bidding' state" False
+validSetDeadline :: Api.CurrencySymbol -> AuctionState -> Api.ScriptContext -> Bool
+validSetDeadline _ NoBids {} _ = trace "Cannot re-set the deadline in 'NoBids' state" False
+validSetDeadline _ Bidding {} _ = trace "Cannot re-set the deadline in 'Bidding' state" False
+validSetDeadline threadCS (Offer seller minbid) ctx =
+  case Api.findOwnInput ctx of
+    Nothing -> trace "Unable to find own input" False
+    Just (Api.TxInInfo offerOref offerOut) ->
+      traceIfFalse
+        "SetDeadline transaction must be signed by seller"
+        (Api.scriptContextTxInfo ctx `Api.txSignedBy` seller)
+        && traceIfFalse
+          "there must be a 'NoBids' output containing the lot and the thread token"
+          ( any
+              ( \o ->
+                  Api.txOutValue o
+                    `Script.geq` (threadTokenOnChain threadCS offerOref <> Api.txOutValue offerOut)
+                    && case outputAuctionState (Api.scriptContextTxInfo ctx) o of
+                      Just (NoBids seller' minbid' _deadline) ->
+                        (seller, minbid) == (seller', minbid')
+                      _ -> False
+              )
+              (Api.getContinuingOutputs ctx)
+          )
 
 -- | A new bid is valid if
 -- * it is made before the bidding deadline
@@ -410,67 +409,69 @@ validSetDeadline threadCS datum ctx =
 --    * the validator locks the lot, the new bid, and the thread token with that datum
 --    * the last bidder has gotten their money back from the validator
 {-# INLINEABLE validBid #-}
-validBid :: AuctionState -> Integer -> Pl.PubKeyHash -> Pl.ScriptContext -> Bool
+validBid :: AuctionState -> Integer -> Api.PubKeyHash -> Api.ScriptContext -> Bool
 validBid datum bid bidder ctx =
-  let txi = Pl.scriptContextTxInfo ctx
-      Just (Pl.TxInInfo _ Pl.TxOut {Pl.txOutValue = originalLockedValue}) = Pl.findOwnInput ctx
-      checkDeadlineAndSignature deadline =
-        traceIfFalse
-          "Bidding past the deadline is not permitted"
-          -- This line is sometimes wrong by one millisecond, but it's not our fault. See
-          --
-          -- https://github.com/tweag/cooked-validators/issues/309
-          --
-          -- for context.
-          (Pl.to deadline `Interval.contains` Pl.txInfoValidRange txi)
-          && traceIfFalse "Bid transaction not signed by bidder" (txi `Pl.txSignedBy` bidder)
-      checkLocked seller deadline v =
-        traceIfFalse
-          "Validator does not lock lot, bid, and thread token with the correct 'Bidding' datum"
-          ( any
-              ( \o ->
-                  outputAuctionState txi o
-                    == Just (Bidding seller deadline (BidderInfo bid bidder))
-                    && Pl.txOutValue o
-                    `Value.geq` v
-              )
-              (Pl.getContinuingOutputs ctx)
-          )
-   in case datum of
-        Offer {} -> trace "Cannot bid on an auction that hasn't yet got a deadline" False
-        NoBids seller minBid deadline ->
-          checkDeadlineAndSignature deadline
-            && traceIfFalse "Cannot bid less than the minimum bid" (minBid <= bid)
-            && checkLocked seller deadline (originalLockedValue <> Ada.lovelaceValueOf bid)
-        Bidding seller deadline (BidderInfo prevBid prevBidder) ->
-          checkDeadlineAndSignature deadline
-            && traceIfFalse "Must bid strictly more than the previous bid" (prevBid < bid)
-            && checkLocked
-              seller
-              deadline
-              ( originalLockedValue
-                  <> Pl.negate (Ada.lovelaceValueOf prevBid)
-                  <> Ada.lovelaceValueOf bid
-              )
-            &&
-            -- #############################################################
-            -- # This usage of 'receivesFrom' introduces a double satisfaction
-            -- # vulnerability in the contract. The problem is that the required
-            -- # outputs to the last bidder are not identified by anything but
-            -- # their value. However, there might be an output containing a
-            -- # suffiecient amount of money to the last bidder's address for
-            -- # completely unrelated reasons. This output is then taken by this
-            -- # validator to satisfy the requirement below.
-            -- #
-            -- # For a completely worked-out exploit of this vulnerability, that
-            -- # steals the output being checked here, see the trace
-            -- # 'exploitDoubleSat' in "AuctionSpec.hs".
-            -- #
-            -- # The 'receives' lines in 'validHammer' suffer of the same problem.
-            -- #############################################################
+  case Api.findOwnInput ctx of
+    Nothing -> trace "Unable to find own input" False
+    Just (Api.TxInInfo _ Api.TxOut {Api.txOutValue = originalLockedValue}) ->
+      let txi = Api.scriptContextTxInfo ctx
+          checkDeadlineAndSignature deadline =
             traceIfFalse
-              "Last bidder is not paid back"
-              (receivesFrom txi prevBidder $ Ada.lovelaceValueOf prevBid)
+              "Bidding past the deadline is not permitted"
+              -- This line is sometimes wrong by one millisecond, but it's not our fault. See
+              --
+              -- https://github.com/tweag/cooked-validators/issues/309
+              --
+              -- for context.
+              (Api.to deadline `Api.contains` Api.txInfoValidRange txi)
+              && traceIfFalse "Bid transaction not signed by bidder" (txi `Api.txSignedBy` bidder)
+          checkLocked seller deadline v =
+            traceIfFalse
+              "Validator does not lock lot, bid, and thread token with the correct 'Bidding' datum"
+              ( any
+                  ( \o ->
+                      outputAuctionState txi o
+                        == Just (Bidding seller deadline (BidderInfo bid bidder))
+                        && Api.txOutValue o
+                        `Script.geq` v
+                  )
+                  (Api.getContinuingOutputs ctx)
+              )
+       in case datum of
+            Offer {} -> trace "Cannot bid on an auction that hasn't yet got a deadline" False
+            NoBids seller minBid deadline ->
+              checkDeadlineAndSignature deadline
+                && traceIfFalse "Cannot bid less than the minimum bid" (minBid <= bid)
+                && checkLocked seller deadline (originalLockedValue <> Script.lovelaceValueOf bid)
+            Bidding seller deadline (BidderInfo prevBid prevBidder) ->
+              checkDeadlineAndSignature deadline
+                && traceIfFalse "Must bid strictly more than the previous bid" (prevBid < bid)
+                && checkLocked
+                  seller
+                  deadline
+                  ( originalLockedValue
+                      <> negate (Script.lovelaceValueOf prevBid)
+                      <> Script.lovelaceValueOf bid
+                  )
+                &&
+                -- #############################################################
+                -- # This usage of 'receivesFrom' introduces a double satisfaction
+                -- # vulnerability in the contract. The problem is that the required
+                -- # outputs to the last bidder are not identified by anything but
+                -- # their value. However, there might be an output containing a
+                -- # sufficient amount of money to the last bidder's address for
+                -- # completely unrelated reasons. This output is then taken by this
+                -- # validator to satisfy the requirement below.
+                -- #
+                -- # For a completely worked-out exploit of this vulnerability, that
+                -- # steals the output being checked here, see the trace
+                -- # 'exploitDoubleSat' in "AuctionSpec.hs".
+                -- #
+                -- # The 'receives' lines in 'validHammer' suffer of the same problem.
+                -- #############################################################
+                traceIfFalse
+                  "Last bidder is not paid back"
+                  (receivesFrom txi prevBidder $ Script.lovelaceValueOf prevBid)
 
 -- | A hammer ends the auction. It is valid if
 -- * it is made after the bidding deadline
@@ -481,45 +482,47 @@ validBid datum bid bidder ctx =
 -- * afer the transaction, if there have been no bids:
 --    * the seller gets the lot
 {-# INLINEABLE validHammer #-}
-validHammer :: Pl.CurrencySymbol -> AuctionState -> Pl.TxOutRef -> Pl.ScriptContext -> Bool
+validHammer :: Api.CurrencySymbol -> AuctionState -> Api.TxOutRef -> Api.ScriptContext -> Bool
 validHammer threadCS datum offerOref ctx =
-  let txi = Pl.scriptContextTxInfo ctx
-      receives = receivesFrom txi
-      theNFT = threadTokenOnChain threadCS offerOref
-      Just (Pl.TxInInfo _ Pl.TxOut {Pl.txOutValue = lockedValue}) = Pl.findOwnInput ctx
-      threadTokenIsBurned = Pl.txInfoMint txi == Pl.negate theNFT
-      checkDeadlineAndBurn deadline =
-        traceIfFalse
-          "Hammer before the deadline is not permitted"
-          (Pl.from deadline `Interval.contains` Pl.txInfoValidRange txi)
-          && traceIfFalse
-            "Hammer does not burn exactly one thread token"
-            threadTokenIsBurned
-   in case datum of
-        Offer seller _minbid ->
-          traceIfFalse "Seller must sign the hammer to withdraw the offer" (txi `Pl.txSignedBy` seller)
-            && traceIfFalse "Seller must get the offer back" (seller `receives` lockedValue)
-        NoBids seller _minbid deadline ->
-          checkDeadlineAndBurn deadline
-            && traceIfFalse
-              "Seller must get the offer back"
-              (seller `receives` (lockedValue <> Pl.negate theNFT))
-        Bidding seller deadline (BidderInfo lastBid lastBidder) ->
-          checkDeadlineAndBurn deadline
-            && traceIfFalse
-              "last bidder must get the lot"
-              ( lastBidder
-                  `receives` ( lockedValue
-                                 <> Pl.negate theNFT
-                                 <> Pl.negate (Ada.lovelaceValueOf lastBid)
-                             )
-              )
-            && traceIfFalse
-              "Seller must get the last bid"
-              (seller `receives` Ada.lovelaceValueOf lastBid)
+  case Api.findOwnInput ctx of
+    Nothing -> trace "Unable to find own input" False
+    Just (Api.TxInInfo _ Api.TxOut {Api.txOutValue = lockedValue}) ->
+      let txi = Api.scriptContextTxInfo ctx
+          receives = receivesFrom txi
+          theNFT = threadTokenOnChain threadCS offerOref
+          threadTokenIsBurned = Api.txInfoMint txi == negate theNFT
+          checkDeadlineAndBurn deadline =
+            traceIfFalse
+              "Hammer before the deadline is not permitted"
+              (Api.from deadline `Api.contains` Api.txInfoValidRange txi)
+              && traceIfFalse
+                "Hammer does not burn exactly one thread token"
+                threadTokenIsBurned
+       in case datum of
+            Offer seller _minbid ->
+              traceIfFalse "Seller must sign the hammer to withdraw the offer" (txi `Api.txSignedBy` seller)
+                && traceIfFalse "Seller must get the offer back" (seller `receives` lockedValue)
+            NoBids seller _minbid deadline ->
+              checkDeadlineAndBurn deadline
+                && traceIfFalse
+                  "Seller must get the offer back"
+                  (seller `receives` (lockedValue <> negate theNFT))
+            Bidding seller deadline (BidderInfo lastBid lastBidder) ->
+              checkDeadlineAndBurn deadline
+                && traceIfFalse
+                  "last bidder must get the lot"
+                  ( lastBidder
+                      `receives` ( lockedValue
+                                     <> negate theNFT
+                                     <> negate (Script.lovelaceValueOf lastBid)
+                                 )
+                  )
+                && traceIfFalse
+                  "Seller must get the last bid"
+                  (seller `receives` Script.lovelaceValueOf lastBid)
 
 {-# INLINEABLE validate #-}
-validate :: ValParams -> AuctionState -> Action -> Pl.ScriptContext -> Bool
+validate :: ValParams -> AuctionState -> Action -> Api.ScriptContext -> Bool
 validate (ValParams threadCS) datum redeemer ctx = case redeemer of
   SetDeadline -> validSetDeadline threadCS datum ctx
   Bid (BidderInfo bid bidder) -> validBid datum bid bidder ctx
@@ -529,17 +532,17 @@ validate (ValParams threadCS) datum redeemer ctx = case redeemer of
 
 data Auction
 
-instance Scripts.ValidatorTypes Auction where
+instance Script.ValidatorTypes Auction where
   type RedeemerType Auction = Action
   type DatumType Auction = AuctionState
 
-auctionValidator' :: ValParams -> Scripts.TypedValidator Auction
+auctionValidator' :: ValParams -> Script.TypedValidator Auction
 auctionValidator' =
-  Scripts.mkTypedValidatorParam @Auction
+  Script.mkTypedValidatorParam @Auction
     $$(PlutusTx.compile [||validate||])
     $$(PlutusTx.compile [||wrap||])
   where
-    wrap = Scripts.mkUntypedValidator
+    wrap = Script.mkUntypedValidator
 
-auctionValidator :: Scripts.TypedValidator Auction
+auctionValidator :: Script.TypedValidator Auction
 auctionValidator = auctionValidator' $ ValParams threadCurrencySymbol

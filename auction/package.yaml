@@ -2,7 +2,7 @@ verbatim:
   cabal-version: 3.4
 
 name: auction
-version: 0.1.0.0
+version: 0.2.0.0
 
 dependencies:
   - base >= 4.9 && < 5
@@ -25,7 +25,6 @@ library:
   source-dirs: src
   ghc-options:
     -Wall
-    -Werror
 
 tests:
   spec:
@@ -36,4 +35,3 @@ tests:
     ghc-options:
       -threaded
       -Wall
-      -Werror

@@ -1,0 +1,7 @@
+cradle:
+  cabal:
+    - path: "./src"
+      component: "lib:auction"
+
+    - path: "./tests"
+      component: "auction:test:spec"
