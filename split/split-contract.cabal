@@ -12,7 +12,6 @@ library
   exposed-modules:
       Split
       Split.OffChain
-      Split.ToUPLC
   other-modules:
       Paths_split_contract
   autogen-modules:
@@ -47,7 +46,6 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       SplitSpec
-      SplitUPLCSpec
       Paths_split_contract
   autogen-modules:
       Paths_split_contract
